@@ -56,6 +56,6 @@ Bicho's precedent. A ranch-flavoured set is offered in [open questions](/design/
 # Sibling bundles
 
 Void Core's ontology (rune, mantle, glyph, holiday, dispatcher, journal, quantity) is defined
-authoritatively at `../VoidCore/okf`. Cross-bundle references
+authoritatively at `..\VoidCore\okf`. Cross-bundle references
 are written `VoidCore:/concepts/mantle.md` (plain-text convention — OKF links are
 bundle-root-relative). **Rancho owns none of Core's vocabulary.**
