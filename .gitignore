@@ -1,0 +1,9 @@
+# Correspondence between Void projects (MESSAGE_FOR_*.md) is not project content.
+MESSAGE_FOR_*.md
+# Any database a test or a person creates here — never commit data.
+*.db
+*.db-wal
+*.db-shm
+*.miga
+build/
+__pycache__/

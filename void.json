@@ -1,0 +1,55 @@
+{
+  "manifest": "void/0.1",
+  "name": "voidrancho",
+  "display_name": "Void Rancho",
+  "kind": "runtime",
+  "version": "0.0.1",
+  "license": "MIT",
+  "description": "The database layer for Void Core applications: runes and mantles stored, indexed, queried and paged at scale, with edge weights as first-class floats, clustering, and a matrix view of a mantle that learned world models can read. One layer above Core, like Void Palabra and Void Maiz; Core stays pure.",
+  "status": "planned",
+  "status_note": "Founded 2026-10-30 by the author's ruling (VoidCore okf/design/the-transition.md, pillar B). OKF only; nothing is built and nothing links Rancho, so requires is empty. Rung 1 is Void Hormiga's SQLite store, extracted and generalized.",
+  "kind_note": "A library with no user-facing install, hence `runtime`; the schema has no `library` kind.",
+
+  "requires": [],
+
+  "interacts_with": [
+    {
+      "name": "voidcore",
+      "kind": "runtime",
+      "seam": "state document + command journal",
+      "direction": "inbound",
+      "note": "Planned. Rancho stores and indexes Void Core state documents and keeps them in step from the SPEC 6.2 journal; every change still enters through Core's dispatcher. Rancho owns none of Core's vocabulary."
+    },
+    {
+      "name": "voidhormiga",
+      "kind": "application",
+      "seam": "store schema",
+      "direction": "inbound",
+      "note": "Planned first client. Hormiga's store (okf/concepts/platform/store.md, 2026-10-27: SQLite, one row per rune/edge/tag, a cluster-paged working set) is Rancho's rung-1 specification."
+    },
+    {
+      "name": "voidsquid",
+      "kind": "application",
+      "seam": "store schema",
+      "direction": "inbound",
+      "note": "Planned second client: its assets.db copies Hormiga's schema (runes, fields, tags, links)."
+    },
+    {
+      "name": "voidmago",
+      "kind": "application",
+      "seam": "void.json",
+      "direction": "outbound",
+      "note": "Reads this manifest to build the family compatibility matrix."
+    }
+  ],
+
+  "provides": {
+    "contracts": { "knowledge_bundle": "okf/" },
+    "effects": [],
+    "effects_note": "None yet. Every read or write of a store is I/O, so Rancho is a holiday implementation by Core's definition (SPEC 9)."
+  },
+
+  "vendors": [],
+  "version_sources": [],
+  "platforms": []
+}
