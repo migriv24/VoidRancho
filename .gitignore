@@ -7,3 +7,13 @@ MESSAGE_FOR_*.md
 *.miga
 build/
 __pycache__/
+
+# Never published (Void Mago's Iscariot): secrets, correspondence between
+# agents, and the private-terms list.
+.env
+git_secret.txt
+KEEP_HIDDEN.txt
+*.pem
+REPORT_FROM_*.md
+.private-terms
+.claude/settings.local.json
