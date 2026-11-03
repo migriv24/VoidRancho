@@ -3,36 +3,70 @@
   "name": "voidrancho",
   "display_name": "Void Rancho",
   "kind": "runtime",
-  "version": "0.0.1",
+  "version": "0.1.0",
   "license": "MIT",
   "description": "The database layer for Void Core applications: runes and mantles stored, indexed, queried and paged at scale, with edge weights as first-class floats, clustering, and a matrix view of a mantle that learned world models can read. One layer above Core, like Void Palabra and Void Maiz; Core stays pure.",
-  "status": "planned",
-  "status_note": "Founded 2026-10-30 by the author's ruling (VoidCore okf/design/the-transition.md, pillar B). OKF only; nothing is built and nothing links Rancho, so requires is empty. Rung 1 is Void Hormiga's SQLite store, extracted and generalized.",
+  "status": "alpha",
+  "status_note": "0.1.0 (2026-10-30): rungs 1-5 built and tested — Void Hormiga's store extracted and generalized (round trip, query parity with ls --tag, weights/ports/provenance/typed columns, format-1 migration), the write path with Hormiga's model-based test, the working set and Leiden clustering with weights, the matrix view with sparse algebra and a .npy training export, the network-path open policy, and snapshots as content-named segments. No application links it yet; Void Hormiga is the first client to move.",
   "kind_note": "A library with no user-facing install, hence `runtime`; the schema has no `library` kind.",
 
-  "requires": [],
+  "requires": [
+    {
+      "name": "voidcore",
+      "kind": "runtime",
+      "version": ">=0.2.14",
+      "sibling": "../VoidCore",
+      "cmake_var": "VOIDCORE_ROOT",
+      "link": "shared",
+      "note": "Linked for four things, all at its C ABI: vc_tag_match (every query is decided by Core's own evaluator, as SPEC 5 requires), the SPEC 6.1 codec (vc_arg_quote, vc_argv_split_json), and a manager for VcCore (the default CoreLink). The floor is 0.2.14 because measure runes, `kinds` annotations and declared glyphs in state.glyphs are what the typed columns, V and clustering read; query parity is tested against 0.2.15's tags/tag.c. Rancho is never linked BY Core."
+    },
+    {
+      "name": "voidmaiz",
+      "kind": "runtime",
+      "version": "*",
+      "sibling": "../VoidMaiz",
+      "cmake_var": "VOIDMAIZ_ROOT",
+      "link": "static",
+      "optional": true,
+      "note": "ONE file, src/graph/graph.cpp (Leiden, its hierarchy, NMI), compiled in place and not copied: where graph analytics lives is open (okf/design/boundaries.md §3) and nothing moves until Maiz and the author agree. Without it Rancho builds and Store::cluster reports that clustering is unavailable."
+    }
+  ],
 
   "interacts_with": [
     {
       "name": "voidcore",
       "kind": "runtime",
-      "seam": "state document + command journal",
+      "seam": "state document + C ABI",
       "direction": "inbound",
-      "note": "Planned. Rancho stores and indexes Void Core state documents and keeps them in step from the SPEC 6.2 journal; every change still enters through Core's dispatcher. Rancho owns none of Core's vocabulary."
+      "note": "Rancho stores and indexes Core state documents and keeps them in step after each dispatch through a CoreLink (rancho/core.hpp); every change still enters through Core's dispatcher. Its one standing ask of Core is `touched` on the journal (Core's world models phase 1), which would make write-back exact instead of reading the command."
     },
     {
       "name": "voidhormiga",
       "kind": "application",
-      "seam": "store schema",
+      "seam": "store schema + C++ API",
       "direction": "inbound",
-      "note": "Planned first client. Hormiga's store (okf/concepts/platform/store.md, 2026-10-27: SQLite, one row per rune/edge/tag, a cluster-paged working set) is Rancho's rung-1 specification."
+      "note": "First client. Rancho's Store, WorkingSet, Plan and JsonStream keep the API of Hormiga's src/store with the same meanings; a format-1 store Hormiga wrote is migrated in place on open. Adoption is Hormiga's to decide."
     },
     {
       "name": "voidsquid",
       "kind": "application",
       "seam": "store schema",
       "direction": "inbound",
-      "note": "Planned second client: its assets.db copies Hormiga's schema (runes, fields, tags, links)."
+      "note": "Planned second client: its assets.db copies Hormiga's schema. Per-tag provenance (the source column) is its finding that tags launder."
+    },
+    {
+      "name": "voidpalabra",
+      "kind": "runtime",
+      "seam": "content names",
+      "direction": "outbound",
+      "note": "Not linked. Segments are named by SHA-256, Palabra's content hash, so identical bytes have one name across the family. The line between Palabra's persistence and Rancho's store is still to agree (okf/design/open-questions.md §2)."
+    },
+    {
+      "name": "voidbicho",
+      "kind": "runtime",
+      "seam": "matrix-view export",
+      "direction": "outbound",
+      "note": "Planned. The .npy export of the matrix view is the first form of the training data Bicho's world-model experiment would read; embeddings Bicho computes are to be stored beside it, keyed by spirit id and provenance."
     },
     {
       "name": "voidmago",
@@ -44,12 +78,21 @@
   ],
 
   "provides": {
-    "contracts": { "knowledge_bundle": "okf/" },
+    "contracts": { "knowledge_bundle": "okf/", "c_abi": "include/rancho/rancho.h" },
+    "documents": {
+      "store": "a SQLite file (format 2): Hormiga's tables plus edge weights/ports, tag sources, the row index, typed fields, cluster settings, blobs",
+      "snapshot": "a directory: segments/<sha256>.json, manifests/<n>.json, ROOT",
+      "matrix_view": "a directory of NumPy .npy arrays and manifest.json (format voidrancho.matrix-view/1)"
+    },
     "effects": [],
-    "effects_note": "None yet. Every read or write of a store is I/O, so Rancho is a holiday implementation by Core's definition (SPEC 9)."
+    "effects_note": "None registered with Core: every read or write of a store is I/O, done by the host's call into Rancho, never through Core's effect seam."
   },
 
-  "vendors": [],
-  "version_sources": [],
-  "platforms": []
+  "vendors": [
+    { "name": "sqlite", "path": "vendor/sqlite", "version": "3.53.3", "license": "public domain" },
+    { "name": "nlohmann-json", "path": "vendor/json", "version": "3.12.0", "license": "MIT" }
+  ],
+  "version_sources": ["void.json", "CMakeLists.txt", "src/capi.cpp"],
+  "platforms": ["windows-x64"],
+  "platforms_note": "Built and tested on windows-x64 (MSYS2 ucrt64, GCC 15). The Linux and macOS paths (media detection by statfs) are written and not yet built."
 }

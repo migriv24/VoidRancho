@@ -2,7 +2,7 @@
 type: Design
 title: Founding — the ruling, and the databases the family already built
 description: "The author's direction of 2026-10-30, verbatim where it matters; a survey of how Void Hormiga, Void Squid, Void Loops Studio and Void Core's own holidays store data today; and what Rancho takes from each."
-tags: [status:planned, audience:dev, confidence:asserted, foundation]
+tags: [status:current, audience:dev, confidence:asserted, foundation]
 timestamp: 2026-10-30T00:00:00Z
 ---
 

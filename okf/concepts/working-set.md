@@ -2,36 +2,40 @@
 type: Concept
 title: Working set
 description: What Void Core holds in memory — a budgeted subset of the store, loaded by cluster, so a database larger than the device still opens and edits fast.
-tags: [status:planned, audience:dev, audience:library, confidence:asserted]
+resource: src/plan.cpp
+tags: [status:current, audience:dev, audience:library, confidence:asserted]
 timestamp: 2026-10-30T00:00:00Z
 ---
 
-A Void Core manager holds one whole state document, and every edit currently pays costs
-proportional to it (the undo memento, the export). The **working set** is the part of the
-store Core is given: small mantles whole, large mantles **by [cluster](/concepts/cluster.md)**,
-and the edges whose both ends are loaded.
+A Void Core manager holds one whole state document, and every edit pays costs proportional to
+it (the undo memento, the export). The **working set** is the part of the store Core is given:
+small mantles whole, large mantles **by [cluster](/concepts/cluster.md)**, and the edges whose
+both ends are loaded (`Store::state(Selection)`).
 
-# The budget
+# The budget (`rancho::Budget`, `rancho::plan`)
 
-A share of the device's memory — Hormiga's rule is an eighth of physical RAM, clamped to
-128 MB–4 GB — that counts **everything** the working set costs: Core's tree, its undo frames,
-the projected scene, any exported text, Rancho's own indexes. Better hardware loads more
-clusters; weak hardware loads fewer and waits more. The smallest machine Hormiga promises has
-2 GB of RAM.
+A share of the device's memory — an eighth of physical RAM, clamped to 128 MB–4 GB
+(`rancho/memory.hpp` reads it) — that counts **everything** the working set costs. Measured
+by Hormiga on its 5×10⁵-rune stress database, per byte of state text: Core's tree ×6.1, the
+projected scene ×5.8, each undo frame ×5.5, the export ×1, a `save`'s baseline ×5.5, transient
+parses ×6 — about (25 + 5.5 × undo depth) times the text. The undo depth is part of the
+budget: 4 on a small machine, 16 on a large one.
+
+**The plan.** A database that fits loads whole, exactly as before the store. One that does not
+keeps its small mantles whole and loads the large ones by cluster: the leaf holding the rune in
+focus, then its neighbours in the hierarchy while they fit. A large mantle not clustered yet
+loads its first runes in order. (`plan_test`: 151 KB of state for a 174 KB budget, 181 of 482
+runes, the measure with them; the rune in focus always in the plan.)
 
 # Changing it
 
-Loading or dropping a cluster rebuilds the Core manager from the store (Void Maiz's
-`replace_state`), so a change of working set is a **reload, never an edit**, and it does not
-enter the journal. Undo history does not survive a reload while Core's undo is memento-based
-— another reason for Core's reified commands, held on Core's roadmap.
-
-# Reading without loading
-
-Anything that **shows or counts** the whole database — a table by page, a calendar by month, a
-map by viewport, a search, a publish — reads the store directly. What is loaded is only what
-can be edited without a wait.
+Loading a different selection rebuilds Core from the store (`CoreLink::replace_state`): a
+change of working set is a **reload, never an edit**, and does not enter the journal. Undo
+history does not survive a reload while Core's undo is memento-based — another reason for
+Core's reified commands. Rows the last session soft-deleted are purged first, since no undo
+can reach them any more.
 
 # Status
 
-`planned`.
+`current`. Ported unchanged from Hormiga (its `plan.hpp`), with the budget's figures still
+Hormiga's measurements; a Rancho host whose projection costs differ should measure its own.

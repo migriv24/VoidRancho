@@ -5,6 +5,10 @@ MESSAGE_FOR_*.md
 *.db-wal
 *.db-shm
 *.miga
+*.store
+*.store-wal
+*.store-shm
+*.store-journal
 build/
 __pycache__/
 

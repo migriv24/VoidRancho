@@ -1,7 +1,7 @@
 ---
 type: Roadmap
 title: Roadmap
-description: The rungs of Void Rancho, cheapest-useful-first. Nothing is built.
+description: The rungs of Void Rancho, cheapest-useful-first. Rungs 1–5 and the first form of rung 6 are built (0.1.0, 2026-10-30); what remains of each, and what comes next.
 tags: [status:current, audience:dev, confidence:asserted, roadmap]
 timestamp: 2026-10-30T00:00:00Z
 ---
@@ -12,21 +12,41 @@ and with pillar A (world models).
 
 # Rungs
 
-0. **The OKF** — this bundle. *Done 2026-10-30.* Next: agree the Palabra line
-   ([open questions](/design/open-questions.md) §2) and the graph-analytics home (§3).
-1. **The store, extracted from Hormiga.** Schema, streaming import of a state document, export
-   back. *Test:* the round-trip law; query parity with Core's `ls --tag`; importing 4× the
-   runes does not grow peak memory more than a constant.
-2. **The write path.** Write-back after each dispatch. *Test:* Hormiga's model-based test
-   against a Core holding everything. *Depends on Core:* `touched` on the journal (Core's world
-   models phase 1) makes this exact instead of re-asking Core rune by rune.
-3. **The working set and clusters.** Budget, cluster paging, Leiden with recorded settings.
-   *Test:* Hormiga's stress database opens and takes edits under a 2 GB memory cap.
-4. **The matrix view.** Row index, per-relation CSR adjacency, values, features, tags.
-   *Test:* PageRank and BFS agree with a reference implementation; a linear readout recovers
-   typed fields.
-5. **Segments and tiers.** Cluster segments + manifest; a NAS path; an S3-compatible bucket.
-6. **The training export** and embeddings storage — the bridge to Void Bicho.
+0. **The OKF** — *done 2026-10-30.*
+1. **The store, extracted from Hormiga** — *built 0.1.0.* Schema, streaming import, export back;
+   weights/ports/provenance/ρ/typed fields; format-1 migration. *Tests held:* the round-trip
+   law; query parity with `ls --tag` (3 000 random expressions); 4× the runes at the same
+   memory. [Store](/concepts/store.md), [query](/concepts/query.md).
+2. **The write path** — *built 0.1.0.* Write-back after each dispatch, through any CoreLink;
+   the actor's name on new tags. *Test held:* Hormiga's model-based test, both paths.
+   *Remaining:* exactness for every verb — **waits on Core's `touched`**.
+   [Write path](/concepts/write-path.md).
+3. **The working set and clusters** — *built 0.1.0.* Budget, plan, cluster paging; Leiden with
+   recorded settings and weights read one relation at a time. *Remaining:* the test the roadmap
+   named — Hormiga's 5×10⁵-rune stress database opening and taking edits under a 2 GB cap — is
+   Hormiga's to run once it links Rancho (its `tools/lowmem` harness).
+   [Working set](/concepts/working-set.md), [cluster](/concepts/cluster.md).
+4. **The matrix view** — *built 0.1.0.* ρ, per-relation CSR `A_r`, V with units, T with
+   sources, X by level; BFS, shortest paths, PageRank, components, A·X over semirings. *Tests
+   held:* each algorithm against a textbook implementation. *Remaining:* the tag graph S, a
+   port-pair split, a linear readout recovering typed fields (the second half of the named
+   test). [Matrix view](/concepts/matrix-view.md).
+5. **Segments and tiers** — *built 0.1.0 for tiers 1–2.* Snapshots as content-named segments
+   + manifests + an atomic root; the network-path open policy. *Remaining:* the bucket adapter
+   (tier 3); garbage collection of unnamed segments. [Tiers](/concepts/tiers.md),
+   [segment](/concepts/segment.md).
+6. **The training export** and embeddings — *first form built:* `.npy` arrays + manifest.
+   *Remaining:* Lance; embeddings storage with Bicho's provenance; transitions on `touched`.
+
+# Next, in order
+
+1. **Hormiga adopts Rancho** — its decision; a message is drafted. The migration is in place,
+   the API is Hormiga's own, and the NAS finding concerns its clients now.
+2. **Core's `touched`** (world models phase 1) — Rancho's one standing ask of Core.
+3. **The Palabra line** ([open questions](/design/open-questions.md) §2) and **the graph
+   analytics home** (§3) — messages to Palabra and Maiz.
+4. **Bicho's first world-model experiment** reads the matrix-view export.
+5. Void Squid's `assets.db`, then Void Loops Studio.
 
 # First clients
 

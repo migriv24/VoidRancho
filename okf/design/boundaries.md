@@ -2,7 +2,7 @@
 type: Design
 title: Boundaries — what Rancho owns and what it refuses
 description: The division of labour across Void Core, Void Palabra, Void Bicho, Void Maiz and Void Hormiga's Antfarm; Rancho's railguard; and why the database is a library above Core rather than a part of it.
-tags: [status:planned, audience:dev, confidence:asserted, foundation]
+tags: [status:current, audience:dev, confidence:asserted, foundation]
 timestamp: 2026-10-30T00:00:00Z
 ---
 
@@ -55,7 +55,9 @@ library, and Void Maiz already ships a C++ Leiden with refinement, a recursive h
 PageRank and components (`voidmaiz/graph.hpp`). **Rancho is a third answer**: the place that
 holds the whole graph, not only the drawn part, is the place where a whole-graph algorithm
 can run without loading it all into a view. Proposed; the author rules, and Maiz is asked
-before anything moves.
+before anything moves. **Maiz was asked, and its lean agrees (2026-10-31)**, on two
+conditions: the algorithms move as a leaf target that depends on neither SQLite nor Core, and
+`voidmaiz/graph.hpp` forwards until hosts move ([open questions](/design/open-questions.md) §3).
 
 ## 4. The overlap with Palabra's "persistence" — to settle with Palabra
 
