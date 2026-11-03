@@ -5,6 +5,7 @@
   "kind": "runtime",
   "version": "0.1.0",
   "license": "MIT",
+  "repository": "https://github.com/migriv24/VoidRancho",
   "description": "The database layer for Void Core applications: runes and mantles stored, indexed, queried and paged at scale, with edge weights as first-class floats, clustering, and a matrix view of a mantle that learned world models can read. One layer above Core, like Void Palabra and Void Maiz; Core stays pure.",
   "status": "alpha",
   "status_note": "0.1.0 (2026-10-30): rungs 1-5 built and tested — Void Hormiga's store extracted and generalized (round trip, query parity with ls --tag, weights/ports/provenance/typed columns, format-1 migration), the write path with Hormiga's model-based test, the working set and Leiden clustering with weights, the matrix view with sparse algebra and a .npy training export, the network-path open policy, and snapshots as content-named segments. No application links it yet; Void Hormiga is the first client to move.",
