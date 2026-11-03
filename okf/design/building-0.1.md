@@ -22,7 +22,7 @@ overrule** — none is hard to reverse yet, because nothing links Rancho.
 | §4 system of record | **the store is the baseline**: an import replaces it; a full document is an export | `Store::import`, `state` |
 | §6 shared media | detect a network path; open it single-host in rollback mode with an exclusive lock; steer sharing to segments | `media.hpp`, `media_test` |
 | §7 training export | **NumPy `.npy` first** (readable with nothing but numpy), Lance second | `export_npy` |
-| §3 graph analytics | **not moved.** Rancho compiled Void Maiz's `graph.cpp` in place for Leiden (since 2026-10-31 it links Maiz's `voidmaiz_graph` target instead); its own algebra is new code, not Maiz's | `RANCHO_HAVE_LEIDEN` |
+| §3 graph analytics | **moved 2026-11-02** (the author ruled: Rancho), as the leaf target `voidrancho_graph`. In 0.1.0 it was **not moved:** Rancho compiled Void Maiz's `graph.cpp` in place for Leiden (since 2026-10-31 it links Maiz's `voidmaiz_graph` target instead); its own algebra is new code, not Maiz's | `voidrancho_graph`, `graph_test` |
 | §2 the line with Palabra | not settled; segments use **Palabra's hash** (SHA-256) so the two can meet later | `sha256_hex` |
 
 ## 2. Seams chosen

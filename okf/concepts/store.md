@@ -4,7 +4,7 @@ title: Store
 description: The database at rest — one row per rune, edge and tag, the whole JSON kept beside typed columns derived from what Core already wrote; the round-trip law that makes it safe; weights, ports, provenance, the row index and glyph-typed fields; and a store Void Hormiga wrote, migrated in place.
 resource: src/store.cpp
 tags: [status:current, audience:dev, audience:library, confidence:asserted, foundation]
-timestamp: 2026-10-30T00:00:00Z
+timestamp: 2026-11-02T00:00:00Z
 ---
 
 The **store** is a database at rest: everything a Void Core state document holds, laid out so
@@ -84,5 +84,9 @@ allowed to corrupt it. Elsewhere it is WAL. See [tiers](/concepts/tiers.md) and
 
 # Status
 
-`current` (0.1.0). Not yet: blobs by content hash (they are keyed by path; Palabra's
+`current` (0.1.0). Since 2026-11-02 (Void Hormiga's ask) a host that keeps its pictures elsewhere
+drops the store's copy with `remove_blob(path)` or `clear_blobs()`. Both change no rune, edge or
+tag, because blobs are not part of the document. `compact()` (SQLite's `VACUUM`) gives the freed
+pages back to the disk. It rewrites the whole file, so the host decides when to pay for it.
+Not yet: blobs by content hash (they are keyed by path; Palabra's
 content-addressed blocks are the plan), and `ls --kind` as a query filter.

@@ -4,9 +4,7 @@
  * is unchanged, so is its comment; Rancho's additions say so. */
 #include "rancho/store.hpp"
 
-#if RANCHO_HAVE_LEIDEN
-#include "voidmaiz/graph.hpp"
-#endif
+#include "rancho/graph.hpp"
 #include "voidcore.h"
 
 #include "sql.hpp"
@@ -1139,6 +1137,21 @@ std::vector<std::string> Store::blob_paths() {
     return out;
 }
 
+bool Store::remove_blob(const std::string& path) {
+    if (!db_) return false;
+    Stmt q(db_, "DELETE FROM blobs WHERE path=?");
+    q.text(1, path).run();
+    return sqlite3_changes(db_) > 0;
+}
+
+std::size_t Store::clear_blobs() {
+    if (!db_) return 0;
+    if (!exec("DELETE FROM blobs")) return 0;
+    return (std::size_t)sqlite3_changes(db_);
+}
+
+bool Store::compact() { return db_ && exec("VACUUM"); }
+
 // ── write-back ───────────────────────────────────────────────────────────────
 
 bool Store::begin() { return db_ && exec("BEGIN"); }
@@ -1418,7 +1431,7 @@ std::optional<std::string> Store::live_rune_id(long long mantle, const std::stri
 // ── clusters ─────────────────────────────────────────────────────────────────
 
 std::string ClusterOptions::settings_json() const {
-    nlohmann::json j = {{"algorithm", "leiden"}, {"implementation", "voidmaiz/graph.hpp"}, {"target", target},
+    nlohmann::json j = {{"algorithm", "leiden"}, {"implementation", "rancho/graph.hpp"}, {"target", target},
                         {"seed", seed}, {"resolution", resolution}, {"relations", relations},
                         {"weighted", weighted}, {"ties", "undirected; value edges excluded"}};
     return j.dump();
@@ -1432,13 +1445,6 @@ ClusterStats Store::cluster(const std::string& mantle, std::uint32_t target, con
 
 ClusterStats Store::cluster(const std::string& mantle, const ClusterOptions& opt, const Progress& progress) {
     ClusterStats out;
-#if !RANCHO_HAVE_LEIDEN
-    (void)mantle;
-    (void)opt;
-    (void)progress;
-    out.error = "built without Void Maiz's graph.cpp: clustering is not available";
-    return out;
-#else
     const auto t0 = std::chrono::steady_clock::now();
     const long long mid = mantle_row(mantle);
     if (mid < 0) {
@@ -1470,7 +1476,7 @@ ClusterStats Store::cluster(const std::string& mantle, const ClusterOptions& opt
             always.push_back(measures.count(std::string(q.col(2))) ? 1 : 0);
         }
     }
-    std::vector<maiz::graph::Edge> edges;
+    std::vector<graph::Edge> edges;
     {
         Stmt q(db_, "SELECT src, dst, relation, weight FROM edges WHERE mantle=? AND deleted=0");
         q.integer(1, mid);
@@ -1490,16 +1496,16 @@ ClusterStats Store::cluster(const std::string& mantle, const ClusterOptions& opt
     }
     index.clear();
     if (progress) progress(0.3, "Finding the clusters");
-    const auto g = maiz::graph::Graph::from_edges((std::uint32_t)rows.size(), edges);
+    const auto g = graph::Graph::from_edges((std::uint32_t)rows.size(), edges);
     edges.clear();
     edges.shrink_to_fit();
-    maiz::graph::LeidenOptions lo;
+    graph::LeidenOptions lo;
     lo.seed = opt.seed; // the same database clusters the same way on every device
     lo.resolution = opt.resolution;
-    const auto h = maiz::graph::hierarchy(g, opt.target, lo);
+    const auto h = graph::hierarchy(g, opt.target, lo);
     std::vector<std::uint32_t> level1(rows.size());
     for (std::size_t i = 0; i < rows.size(); ++i) level1[i] = h.path[i].empty() ? 0 : h.path[i][0];
-    out.modularity = maiz::graph::modularity(g, level1, opt.resolution);
+    out.modularity = graph::modularity(g, level1, opt.resolution);
     out.depth = h.depth;
 
     if (progress) progress(0.8, "Filing the records");
@@ -1542,7 +1548,6 @@ ClusterStats Store::cluster(const std::string& mantle, const ClusterOptions& opt
     out.seconds = std::chrono::duration<double>(std::chrono::steady_clock::now() - t0).count();
     if (progress) progress(1.0, "Filing the records");
     return out;
-#endif
 }
 
 std::string Store::cluster_settings(const std::string& mantle) {

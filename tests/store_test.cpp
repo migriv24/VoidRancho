@@ -199,6 +199,39 @@ void a_v3_bundle_imports_its_state_and_pictures() {
     }
 }
 
+/* Void Hormiga, 2026-11-02: a host that keeps its pictures beside the store
+ * must be able to drop the store's copy, and get the disk back. */
+void a_blob_can_be_dropped_and_its_space_given_back() {
+    const fs::path p = scratch("blobs-drop.store");
+    const std::string doc = sample_state();
+    const std::string mb(1 << 20, 'x');
+    {
+        Store st(p);
+        JsonStream in = JsonStream::from_text(doc);
+        CHECK(st.import(in).ok);
+        for (int i = 0; i < 4; ++i) st.put_blob("assets/" + std::to_string(i) + ".png", mb);
+        CHECK(st.blob_paths().size() == 4);
+        CHECK(st.remove_blob("assets/0.png"));
+        CHECK(!st.remove_blob("assets/0.png")); // already gone
+        CHECK(!st.blob("assets/0.png"));
+        CHECK(st.blob("assets/1.png").value_or("") == mb);
+    }
+    const auto full = fs::file_size(p);
+    {
+        Store st(p);
+        CHECK(st.clear_blobs() == 3);
+        CHECK(st.blob_paths().empty());
+        CHECK(st.clear_blobs() == 0);
+    }
+    CHECK(fs::file_size(p) + (1 << 20) > full); // freed inside the file, not yet on the disk
+    {
+        Store st(p);
+        CHECK(st.compact());
+        CHECK(plain(st.state()) == plain(doc)); // the document untouched
+    }
+    CHECK(fs::file_size(p) + 3 * (1 << 20) <= full);
+}
+
 void a_failed_import_leaves_the_store_as_it_was() {
     const std::string doc = sample_state();
     Store st(scratch("atomic.store"));
@@ -504,6 +537,7 @@ int main() {
         {"the store survives being reopened", the_store_survives_being_reopened},
         {"a member that was absent stays absent", a_member_that_was_absent_stays_absent},
         {"a v3 bundle imports its state and pictures", a_v3_bundle_imports_its_state_and_pictures},
+        {"a blob can be dropped and its space given back", a_blob_can_be_dropped_and_its_space_given_back},
         {"a failed import leaves the store as it was", a_failed_import_leaves_the_store_as_it_was},
         {"a selection holds its runes and only their edges", a_selection_holds_its_runes_and_only_their_edges},
         {"weights, direction and ports are columns", weights_direction_and_ports_are_columns},

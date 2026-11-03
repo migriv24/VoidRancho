@@ -10,7 +10,7 @@ applications — how runes and mantles are **stored**, **indexed**, **queried**,
 application.
 
 This is the **dev** bundle. **0.1.0 is built** (2026-10-30): rungs 1–5 and the first form of
-rung 6, 8 test suites green. The honesty convention is inherited from the Void Core bundle — a
+rung 6, 8 test suites green; a ninth since 2026-11-02, when graph analysis moved here. The honesty convention is inherited from the Void Core bundle — a
 concept may claim `status:current` only with a `resource:` link to the code that backs it, and
 every current page says what of it is still planned.
 
@@ -55,8 +55,9 @@ Core** so Core stays pure, and it must be ready for JEPA-class world models (pil
 # The code, in one line each
 
 `include/rancho/` — `store.hpp` (the store, queries, clusters), `working_set.hpp` (write-back),
-`plan.hpp` (the budget), `core.hpp` (the CoreLink seam), `matrix.hpp` + `linalg.hpp` (the
-matrix view and its algebra), `segments.hpp` (snapshots), `media.hpp` (network paths),
+`plan.hpp` (the budget), `core.hpp` (the CoreLink seam), `graph.hpp` (Leiden, its hierarchy,
+PageRank, components, NMI: the leaf target `voidrancho_graph`, from Void Maiz since 2026-11-02),
+`matrix.hpp` + `linalg.hpp` (the matrix view and its algebra), `segments.hpp` (snapshots), `media.hpp` (network paths),
 `json_stream.hpp` (reading any size), `rancho.h` (the C ABI). Tests in `tests/`, one promise per
 function.
 

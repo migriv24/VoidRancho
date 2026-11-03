@@ -243,9 +243,26 @@ public:
     void reindex_fields();
 
     // ── blobs ─────────────────────────────────────────────────────────────
+    /* The bytes of pictures a bundle carried, by path. Not part of the
+     * document and not authored through Core: a host's cache of its assets,
+     * which it may keep elsewhere instead (an import sink, or files beside the
+     * store). Dropping them changes no rune, edge or tag. */
     void put_blob(const std::string& path, const std::string& bytes);
     std::optional<std::string> blob(const std::string& path);
     std::vector<std::string> blob_paths();
+    /* Rancho (2026-11-02, Void Hormiga's ask): forget one blob; true if there
+     * was one. And forget them all; returns how many. The pages they held are
+     * free for the store's next writes but the FILE keeps its size until
+     * `compact`. */
+    bool remove_blob(const std::string& path);
+    std::size_t clear_blobs();
+
+    /* Rancho: rebuild the store in place, returning its free pages to the disk
+     * (SQLite's VACUUM). It rewrites the whole file and needs as much free
+     * space again while it runs, so it is a host's choice when to pay for it:
+     * after `clear_blobs` or `purge`, not after every edit. Not inside
+     * `begin`/`commit`. */
+    bool compact();
 
     // ── write-back (rancho/working_set.hpp is its caller) ─────────────────
     bool begin();
@@ -282,7 +299,7 @@ public:
 
     // ── clusters: where each rune belongs (okf/concepts/cluster.md) ───────
     /* Cluster a mantle by its links (Leiden, recursively, until each leaf holds
-     * at most `target` runes; Void Maiz's implementation) and store each rune's
+     * at most `target` runes; rancho/graph.hpp) and store each rune's
      * path, with the settings that produced it. Derived data, like an index:
      * rebuilt, never authored, and not part of the document. Runes of a measure
      * glyph are marked always-loaded, because every value edge points at one,

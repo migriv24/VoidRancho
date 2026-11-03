@@ -4,7 +4,7 @@ title: Cluster
 description: A connected group of runes of bounded size, found from the graph itself (Leiden, recursively) — the one unit Rancho pages, stores as a segment, analyses and exports. Weights are first-class input, one relation at a time, and the settings are recorded beside the result.
 resource: src/store.cpp
 tags: [status:current, audience:dev, audience:library, confidence:asserted]
-timestamp: 2026-10-30T00:00:00Z
+timestamp: 2026-11-02T00:00:00Z
 ---
 
 A **cluster** is a connected set of runes, small enough for a weak device, found from the
@@ -15,13 +15,14 @@ like an index: rebuilt, never authored, not part of the document. A rune of a **
 glyph is filed `!` (always loaded) because every value edge points at one, and **value edges
 are not ties**.
 
-The implementation is Void Maiz's (`VoidMaiz:include/voidmaiz/graph.hpp`), linked as Maiz's
-own target `voidmaiz_graph`, which `VoidMaiz:cmake/voidmaiz_graph.cmake` defines once per
-build, so a host linking both libraries carries one copy of it (since 2026-10-31; a Maiz older
-than the fragment is still compiled in place). Maiz treats `graph.hpp` as a contract with
-Rancho and announces signature changes. Where graph analytics lives is still open
-([boundaries](/design/boundaries.md) §3); Maiz's lean agrees with Rancho's, and nothing moves
-until the author rules.
+The implementation is Rancho's own, `include/rancho/graph.hpp` (namespace `rancho::graph`), since
+the author ruled on 2026-11-02 that graph analysis lives here ([boundaries](/design/boundaries.md)
+§3). Void Maiz wrote it, and it moved unchanged except for its namespace. It is the **leaf target**
+`voidrancho_graph`, which links neither SQLite nor Core. `cmake/voidrancho_graph.cmake` defines it
+once per build and can be included on its own. Void Maiz's `voidmaiz_graph` bridges to it, so a host
+linking both libraries carries one copy. `tests/graph_test.cpp` links that target and nothing else.
+The recorded settings say `"implementation": "rancho/graph.hpp"`. Settings recorded before the move
+say `voidmaiz/graph.hpp`, which is the same code.
 
 # One unit, five jobs
 

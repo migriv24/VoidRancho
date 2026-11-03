@@ -3,7 +3,7 @@ type: Design
 title: Boundaries — what Rancho owns and what it refuses
 description: The division of labour across Void Core, Void Palabra, Void Bicho, Void Maiz and Void Hormiga's Antfarm; Rancho's railguard; and why the database is a library above Core rather than a part of it.
 tags: [status:current, audience:dev, confidence:asserted, foundation]
-timestamp: 2026-10-30T00:00:00Z
+timestamp: 2026-11-02T00:00:00Z
 ---
 
 # Boundaries
@@ -48,7 +48,7 @@ in Core's own terms:
 | draw a mantle; gestures → commands | **Void Maiz** | — |
 | connect a database to external APIs live | **the application** (Hormiga's Antfarm) | connectors emit commands; Rancho stores their results |
 
-## 3. Graph analytics — a proposal, not a ruling
+## 3. Graph analytics — Rancho's (ruled 2026-11-02)
 
 Void Hormiga asked Core on 2026-10-25 whether graph analysis belongs in Core or in the view
 library, and Void Maiz already ships a C++ Leiden with refinement, a recursive hierarchy,
@@ -58,6 +58,13 @@ can run without loading it all into a view. Proposed; the author rules, and Maiz
 before anything moves. **Maiz was asked, and its lean agrees (2026-10-31)**, on two
 conditions: the algorithms move as a leaf target that depends on neither SQLite nor Core, and
 `voidmaiz/graph.hpp` forwards until hosts move ([open questions](/design/open-questions.md) §3).
+
+**The author ruled on 2026-11-02 that graph analysis lives in Void Rancho.** It moved that day,
+on both of Maiz's conditions: `rancho/graph.hpp` (namespace `rancho::graph`) is the leaf target
+`voidrancho_graph`, which links nothing, defined by `cmake/voidrancho_graph.cmake`, which can be
+included without the rest of Rancho. Void Maiz's `voidmaiz_graph` is now a bridge over it, and
+`maiz::graph` names `rancho::graph` until Maiz's hosts move. Maiz keeps a frozen copy only for
+builds without Rancho beside it. Fixes go here.
 
 ## 4. The overlap with Palabra's "persistence" — to settle with Palabra
 

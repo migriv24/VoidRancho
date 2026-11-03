@@ -8,13 +8,12 @@ project(voidrancho VERSION 0.1.0 LANGUAGES C CXX)
 #
 # Siblings are built from their own repositories beside this one, never copied:
 #   ../VoidCore  — linked (the dispatcher, the tag grammar, the §6.1 codec)
-#   ../VoidMaiz  — its graph analysis (Leiden) as the target voidmaiz_graph,
-#                  defined once per build by cmake/voidmaiz_graph.cmake. Where
-#                  graph analytics lives is open (okf/design/boundaries.md §3);
-#                  until it is settled Rancho uses Maiz's, it does not move it.
+# Graph analysis (Leiden, its hierarchy, NMI) is Rancho's own since 2026-11-02:
+# the leaf target voidrancho_graph, defined once per build by
+# cmake/voidrancho_graph.cmake, which Void Maiz's bridge also includes.
 #
 # Built as a SUBDIRECTORY of a host that also adds Void Maiz (Void Hormiga, once
-# it moves its store), in either order: one voidcore target, one voidmaiz_graph,
+# it moves its store), in either order: one voidcore target, one voidrancho_graph,
 # and Rancho's tests stay out of the parent's ctest unless RANCHO_BUILD_TESTS.
 
 if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
@@ -43,7 +42,6 @@ if(MINGW)
 endif()
 
 set(VOIDCORE_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/../VoidCore" CACHE PATH "Void Core's repository")
-set(VOIDMAIZ_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/../VoidMaiz" CACHE PATH "Void Maiz's repository (for Leiden)")
 
 # EITHER SPELLING OF THE ROOT. VOIDCORE_ROOT is one cache variable the family
 # reads two ways: here it is Core's repository, while Void Maiz and Void Squid
@@ -84,40 +82,15 @@ set(RANCHO_SOURCES
   src/capi.cpp
 )
 
-# Leiden: Void Maiz's voidmaiz_graph target, never a second copy of it. Compiled
-# into our own archive (as 0.1.0 did), maiz::graph::* reached a host linking
-# both of us twice, and the linker kept whichever archive it met first. The
-# fragment defines the target once per build, in any add order; a parent that
-# already has it needs no path at all. The graph.cpp fallback is for a Void Maiz
-# older than the fragment (2026-10-31).
-set(RANCHO_HAVE_LEIDEN 0)
-set(RANCHO_LEIDEN_FROM_SOURCE OFF)
-if(NOT TARGET voidmaiz_graph AND EXISTS "${VOIDMAIZ_ROOT}/cmake/voidmaiz_graph.cmake")
-  include("${VOIDMAIZ_ROOT}/cmake/voidmaiz_graph.cmake")
-endif()
-if(TARGET voidmaiz_graph)
-  set(RANCHO_HAVE_LEIDEN 1)
-  message(STATUS "Void Rancho: clustering by Void Maiz's Leiden (target voidmaiz_graph)")
-elseif(EXISTS "${VOIDMAIZ_ROOT}/src/graph/graph.cpp")
-  list(APPEND RANCHO_SOURCES "${VOIDMAIZ_ROOT}/src/graph/graph.cpp")
-  set(RANCHO_HAVE_LEIDEN 1)
-  set(RANCHO_LEIDEN_FROM_SOURCE ON)
-  message(STATUS "Void Rancho: clustering by Void Maiz's Leiden, compiled in place (an older Void Maiz: ${VOIDMAIZ_ROOT})")
-else()
-  message(WARNING "Void Maiz not found at ${VOIDMAIZ_ROOT}: Store::cluster will report it is unavailable")
-endif()
+# Leiden: our own leaf target, the one copy of rancho::graph::* in any build
+# (a parent that included the fragment first, Void Maiz's bridge say, keeps it).
+include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/voidrancho_graph.cmake")
 
 add_library(voidrancho STATIC ${RANCHO_SOURCES})
 target_include_directories(voidrancho
   PUBLIC  include
   PRIVATE vendor/json)
-if(TARGET voidmaiz_graph)
-  target_link_libraries(voidrancho PUBLIC voidmaiz_graph) # and voidmaiz/graph.hpp's include dir
-elseif(RANCHO_LEIDEN_FROM_SOURCE)
-  target_include_directories(voidrancho PUBLIC "${VOIDMAIZ_ROOT}/include")
-endif()
-target_compile_definitions(voidrancho PRIVATE RANCHO_HAVE_LEIDEN=${RANCHO_HAVE_LEIDEN})
-target_link_libraries(voidrancho PUBLIC voidcore rancho_sqlite3)
+target_link_libraries(voidrancho PUBLIC voidrancho_graph voidcore rancho_sqlite3)
 if(WIN32)
   target_link_libraries(voidrancho PUBLIC psapi) # rancho/memory.hpp
 endif()
@@ -135,9 +108,14 @@ if(RANCHO_BUILD_TESTS)
     add_executable(rancho_${t} tests/${t}.cpp)
     target_link_libraries(rancho_${t} PRIVATE voidrancho)
     target_include_directories(rancho_${t} PRIVATE vendor/json tests)
-    target_compile_definitions(rancho_${t} PRIVATE RANCHO_HAVE_LEIDEN=${RANCHO_HAVE_LEIDEN})
     add_test(NAME rancho_${t} COMMAND rancho_${t})
   endforeach()
+
+  # The graph analysis on its own: linked to voidrancho_graph and nothing else,
+  # so "it depends on nothing" is a build fact, not a comment.
+  add_executable(rancho_graph_test tests/graph_test.cpp)
+  target_link_libraries(rancho_graph_test PRIVATE voidrancho_graph)
+  add_test(NAME rancho_graph_test COMMAND rancho_graph_test)
 
   # Void Core is a shared library: put it beside the tests so they start.
   add_custom_target(rancho_stage_voidcore ALL

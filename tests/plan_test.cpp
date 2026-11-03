@@ -14,7 +14,7 @@
 #include "rancho/store.hpp"
 #include "rancho/working_set.hpp"
 
-#include "voidmaiz/graph.hpp" // nmi: a clustering measured against the planted truth
+#include "rancho/graph.hpp" // nmi: a clustering measured against the planted truth
 
 #include <map>
 #include <random>
@@ -75,7 +75,7 @@ double nmi_with(Store& st, const std::map<std::string, int>& truth) {
         a.push_back((std::uint32_t)group);
         b.push_back(ids.emplace(path, (std::uint32_t)ids.size()).first->second);
     }
-    return maiz::graph::nmi(a, b);
+    return rancho::graph::nmi(a, b);
 }
 
 /* The names Core holds in `mantle`, read from an export. */

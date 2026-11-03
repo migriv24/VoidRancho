@@ -50,7 +50,8 @@ buckets, embeddings, Lance, a Python binding. See [the roadmap](okf/roadmap.md).
 
 ## Build
 
-Beside `../VoidCore` (linked) and, for clustering, `../VoidMaiz` (its `voidmaiz_graph` target):
+Beside `../VoidCore` (linked). Graph analysis (Leiden, its hierarchy, PageRank, components,
+NMI) is Rancho's own leaf target, `voidrancho_graph` (`rancho/graph.hpp`), which links nothing:
 
 ```
 cmake -S . -B build -G Ninja
@@ -62,7 +63,8 @@ Built and tested on windows-x64 (MSYS2 ucrt64, GCC 15).
 
 As a subdirectory of a host that also adds Void Maiz, in either order: `VOIDCORE_ROOT` may
 name Core's repository or its `core/` directory, a parent's `voidcore` target is used rather
-than a second Core, Maiz's Leiden is linked once, and Rancho's tests are registered only with
+than a second Core, `voidrancho_graph` is defined once (`cmake/voidrancho_graph.cmake`, which
+Void Maiz's bridge also includes), and Rancho's tests are registered only with
 `-DRANCHO_BUILD_TESTS=ON` (on by default when Rancho is built on its own). A host with a
 `maiz::Core` passes it as `maiz::RanchoLink` (`voidmaiz/rancho.hpp`).
 
@@ -103,6 +105,7 @@ found, is [okf/design/building-0.1.md](okf/design/building-0.1.md).
   stores; Palabra names and reconciles. Segments use Palabra's hash.
 - **[Void Bicho](../VoidBicho/)** — runs models. Bicho computes embeddings; Rancho keeps
   them and hands Bicho the matrices.
-- **[Void Maiz](../VoidMaiz/)** — the view. Rancho links its Leiden (`voidmaiz_graph`);
-  Maiz ships the `CoreLink` adapter for its Core (`maiz::RanchoLink`).
+- **[Void Maiz](../VoidMaiz/)** — the view. Its graph analysis moved here (2026-11-02);
+  `voidmaiz/graph.hpp` forwards to ours. Maiz ships the `CoreLink` adapter for its Core
+  (`maiz::RanchoLink`).
 - **[Void Hormiga](../VoidHormiga/)** — the first client, whose store is rung 1.

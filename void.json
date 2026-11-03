@@ -8,7 +8,7 @@
   "repository": "https://github.com/migriv24/VoidRancho",
   "description": "The database layer for Void Core applications: runes and mantles stored, indexed, queried and paged at scale, with edge weights as first-class floats, clustering, and a matrix view of a mantle that learned world models can read. One layer above Core, like Void Palabra and Void Maiz; Core stays pure.",
   "status": "alpha",
-  "status_note": "0.1.0 (2026-10-30): rungs 1-5 built and tested — Void Hormiga's store extracted and generalized (round trip, query parity with ls --tag, weights/ports/provenance/typed columns, format-1 migration), the write path with Hormiga's model-based test, the working set and Leiden clustering with weights, the matrix view with sparse algebra and a .npy training export, the network-path open policy, and snapshots as content-named segments. No application links it yet; Void Hormiga is the first client to move.",
+  "status_note": "0.1.0 (2026-10-30): rungs 1-5 built and tested — Void Hormiga's store extracted and generalized (round trip, query parity with ls --tag, weights/ports/provenance/typed columns, format-1 migration), the write path with Hormiga's model-based test, the working set and Leiden clustering with weights, the matrix view with sparse algebra and a .npy training export, the network-path open policy, and snapshots as content-named segments. Void Hormiga's library builds on it (2026-11-02; its 2 GB exit test passed), and graph analysis (voidrancho_graph, a leaf target) moved here from Void Maiz the same day.",
   "kind_note": "A library with no user-facing install, hence `runtime`; the schema has no `library` kind.",
 
   "requires": [
@@ -21,17 +21,6 @@
       "cmake_var": "VOIDCORE_ROOT",
       "link": "shared",
       "note": "Linked for four things, all at its C ABI: vc_tag_match (every query is decided by Core's own evaluator, as SPEC 5 requires), the SPEC 6.1 codec (vc_arg_quote, vc_argv_split_json), and a manager for VcCore (the default CoreLink). The floor is 0.2.14 because measure runes, `kinds` annotations and declared glyphs in state.glyphs are what the typed columns, V and clustering read; query parity is tested against 0.2.15's tags/tag.c. Rancho is never linked BY Core."
-    },
-    {
-      "name": "voidmaiz",
-      "kind": "runtime",
-      "version": "*",
-      "repository": "https://github.com/migriv24/VoidMaiz",
-      "sibling": "../VoidMaiz",
-      "cmake_var": "VOIDMAIZ_ROOT",
-      "link": "static",
-      "optional": true,
-      "note": "ONE file, src/graph/graph.cpp (Leiden, its hierarchy, NMI), compiled in place and not copied: where graph analytics lives is open (okf/design/boundaries.md §3) and nothing moves until Maiz and the author agree. Without it Rancho builds and Store::cluster reports that clustering is unavailable."
     }
   ],
 
@@ -48,7 +37,14 @@
       "kind": "application",
       "seam": "store schema + C++ API",
       "direction": "inbound",
-      "note": "First client. Rancho's Store, WorkingSet, Plan and JsonStream keep the API of Hormiga's src/store with the same meanings; a format-1 store Hormiga wrote is migrated in place on open. Adoption is Hormiga's to decide."
+      "note": "First client. Rancho's Store, WorkingSet, Plan and JsonStream keep the API of Hormiga's src/store with the same meanings; a format-1 store Hormiga wrote is migrated in place on open. Adopted 2026-11-02: Hormiga's library keeps no copy of the store, and its .miga v4 bundle is written on this API (vacuum_into, purge, put_blob; remove_blob and clear_blobs at its ask)."
+    },
+    {
+      "name": "voidmaiz",
+      "kind": "runtime",
+      "seam": "rancho/graph.hpp + CoreLink",
+      "direction": "inbound",
+      "note": "Not linked by Rancho. Graph analysis moved from Maiz to Rancho on 2026-11-02 (the author's ruling): Maiz's voidmaiz_graph target bridges to voidrancho_graph by including cmake/voidrancho_graph.cmake, so its names and its standing alone are a contract. Maiz ships the CoreLink adapter for its Core (maiz::RanchoLink)."
     },
     {
       "name": "voidsquid",

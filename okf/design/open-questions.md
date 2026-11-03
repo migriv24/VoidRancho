@@ -3,7 +3,7 @@ type: Design
 title: Open questions
 description: What is genuinely undecided about Void Rancho, each with a lean, for the author — and which leans 0.1 took in order to build, provisionally.
 tags: [status:current, audience:dev, confidence:exploratory]
-timestamp: 2026-10-30T00:00:00Z
+timestamp: 2026-11-02T00:00:00Z
 ---
 
 # Open questions
@@ -30,8 +30,11 @@ Rancho yet, so none is expensive to reverse.
    Core**, so a view-only Maiz host can cluster a drawn scene without taking a database; and
    Maiz's `graph.hpp` **forwards** until hosts move (as networking did to Void Hammer). Both are
    compatible with Rancho's lean. Since 2026-10-31 Rancho links Maiz's `voidmaiz_graph` target
-   rather than compiling the file, so a move is a path change in one CMake fragment. The
-   author's to rule.
+   rather than compiling the file, so a move is a path change in one CMake fragment.
+   **Ruled 2026-11-02 by the author: Rancho.** Moved that day as `voidrancho_graph`
+   (`rancho/graph.hpp`, a leaf). Maiz's `graph.hpp` forwards to it. The overlap with the matrix
+   view's PageRank and components is kept: the undirected, weighted forms clustering reads
+   beside the directed semiring forms of the matrix view. Closed.
 4. **The system of record at rest.** *Taken in 0.1:* the store is the baseline; a full
    document is an export, and an import replaces the store.
 5. **Language.** *Taken in 0.1:* C++20 behind a small C ABI (`rancho/rancho.h`); SQLite

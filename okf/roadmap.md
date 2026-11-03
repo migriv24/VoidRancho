@@ -3,7 +3,7 @@ type: Roadmap
 title: Roadmap
 description: The rungs of Void Rancho, cheapest-useful-first. Rungs 1–5 and the first form of rung 6 are built (0.1.0, 2026-10-30); what remains of each, and what comes next.
 tags: [status:current, audience:dev, confidence:asserted, roadmap]
-timestamp: 2026-10-30T00:00:00Z
+timestamp: 2026-11-02T00:00:00Z
 ---
 
 **Important, by the author's ruling (2026-10-30):** Rancho is pillar B of Void Core's
@@ -40,13 +40,19 @@ and with pillar A (world models).
 
 # Next, in order
 
-1. **Hormiga adopts Rancho** — its decision; a message is drafted. The migration is in place,
-   the API is Hormiga's own, and the NAS finding concerns its clients now.
+1. **Hormiga adopted Rancho** (2026-11-02): its library builds on ours, the 2 GB exit test
+   passed. Its app's own move to a store (Hormiga's stage 5) is next, and the NAS question
+   (UNC paths or mapped drives) waits on the author.
 2. **Core's `touched`** (world models phase 1) — Rancho's one standing ask of Core.
-3. **The Palabra line** ([open questions](/design/open-questions.md) §2) and **the graph
-   analytics home** (§3) — messages to Palabra and Maiz.
-4. **Bicho's first world-model experiment** reads the matrix-view export.
-5. Void Squid's `assets.db`, then Void Loops Studio.
+3. **The Palabra line** ([open questions](/design/open-questions.md) §2) — a message to
+   Palabra. (The graph analytics home, §3, was ruled and moved on 2026-11-02.)
+4. **Phones** (the author, 2026-11-02, relayed by Void Maiz): Android compiles and links
+   unchanged; still to do are a refusal to build Core's shared library on a phone with no
+   parent `voidcore`, SQLite's temp directory, which files go in `data_dir` and which in
+   `cache_dir`, the call that makes a working set durable on backgrounding, and an iOS and
+   Android compile in CI.
+5. **Bicho's first world-model experiment** reads the matrix-view export.
+6. Void Squid's `assets.db`, then Void Loops Studio.
 
 # First clients
 

@@ -23,8 +23,10 @@ never linked by it. Read `okf/index.md` first, then `okf/design/boundaries.md`.
    opening and migrating in place.
 5. **Vendor, don't depend.** SQLite and nlohmann/json are vendored with their notes
    (`vendor/*/LICENSE.md`, `THIRD-PARTY-NOTICES.md`), the same builds as Hormiga's. Siblings
-   are built from their own repositories (`VOIDCORE_ROOT`, `VOIDMAIZ_ROOT`), never copied —
-   Maiz's `graph.cpp` is compiled in place until the graph-analytics home is settled.
+   are built from their own repositories (`VOIDCORE_ROOT`), never copied. Graph analysis is
+   Rancho's own since 2026-11-02 (`voidrancho_graph`, a leaf: no SQLite, no Core); Void
+   Maiz's bridge includes `cmake/voidrancho_graph.cmake`, so its names and its standing alone
+   are a contract — a signature change in `rancho/graph.hpp` is announced to Maiz first.
 6. **Upstream messages, not upstream edits.** Rancho uses Core and Maiz and never patches
    them. Needs are drafted at the repo root as
    `MESSAGE_FOR_<RECIPIENT>_rancho-<topic>-<YYYY-MM-DD>.md` (gitignored: correspondence, not
