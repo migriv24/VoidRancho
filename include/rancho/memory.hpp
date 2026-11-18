@@ -1,7 +1,8 @@
 /* rancho/memory.hpp — how much memory this process holds, and the machine has.
  *
  * The bytes the system has committed to the process (Windows' private
- * bytes, the resident set elsewhere): what a weak device runs out of. Used by
+ * bytes, Apple's phys_footprint, the resident set elsewhere): what a weak
+ * device runs out of. Used by
  * the tests that hold memory to a budget, the memory budget of the working set
  * (okf/concepts/working-set.md). Ported from Void Hormiga's
  * platform/process_memory.hpp. 0 where it cannot
@@ -37,6 +38,13 @@ inline std::uint64_t process_bytes() {
         return pmc.PrivateUsage;
     return 0;
 #elif defined(__APPLE__)
+    /* phys_footprint: what jetsam counts on iOS, and what Activity Monitor
+     * shows (Void Maiz, 2026-11-02). The resident size undercounts compressed
+     * memory, which a phone kills for just the same. */
+    task_vm_info_data_t vm{};
+    mach_msg_type_number_t vn = TASK_VM_INFO_COUNT;
+    if (task_info(mach_task_self(), TASK_VM_INFO, reinterpret_cast<task_info_t>(&vm), &vn) == KERN_SUCCESS)
+        return vm.phys_footprint;
     mach_task_basic_info info{};
     mach_msg_type_number_t n = MACH_TASK_BASIC_INFO_COUNT;
     if (task_info(mach_task_self(), MACH_TASK_BASIC_INFO, reinterpret_cast<task_info_t>(&info), &n) == KERN_SUCCESS)

@@ -43,6 +43,7 @@ Core's own tag evaluator.
 | **working set** | a database larger than the device opens and edits by cluster, within a memory budget | [working set](okf/concepts/working-set.md) |
 | **clusters** | Leiden, recursively; edge weights first-class, one relation at a time; settings recorded | [cluster](okf/concepts/cluster.md) |
 | **matrix view** | ρ, one sparse matrix per relation, values, tags, typed features; BFS, shortest paths, PageRank, components, A·X; a `.npy` export | [matrix view](okf/concepts/matrix-view.md) |
+| **the deed** (2026-11-06) | the `.rancho` file: one database, many files — who it is, and the parts (store, segments, blobs) its mantles live in; a missing part is a region not loaded; mantles named by id; file types built on the rancho, while a database declares no kind (a host brings its expectations); a store that carries its own deed; the `rancho` tool | [language](okf/concepts/language.md), [deed](okf/concepts/deed.md), [beyond one database](okf/design/beyond-one-database.md) |
 | **shared media** | a store on a NAS path is single-host by lock; snapshots as content-named segments | [tiers](okf/concepts/tiers.md), [segment](okf/concepts/segment.md) |
 
 Not yet: transitions (waits on Core recording what a command `touched`), object-storage

@@ -18,7 +18,8 @@ std::uint64_t Budget::text_bytes() const {
     return bytes * 2 / (50 + 11 * (std::uint64_t)std::max(undo_depth, 0));
 }
 
-Plan plan(Store& st, const Budget& budget, const std::string& focus_mantle, const std::string& focus_rune) {
+Plan plan(Store& st, const Budget& budget, const std::string& focus_mantle, const std::string& focus_rune,
+          const std::string& focus_leaf) {
     Plan p;
     const auto mantles = st.estimates();
     std::uint64_t total = 0;
@@ -72,11 +73,17 @@ Plan plan(Store& st, const Budget& budget, const std::string& focus_mantle, cons
         auto cost = [&](const ClusterLeaf& l) { return (std::uint64_t)((double)l.bytes * scale); };
 
         std::size_t start = 0;
-        const std::string want = m->name == focus_mantle && !focus_rune.empty() ? st.cluster_of(m->name, focus_rune)
-                                                                               : std::string();
+        const std::string want = m->name != focus_mantle ? std::string()
+                                 : !focus_rune.empty()   ? st.cluster_of(m->name, focus_rune)
+                                                         : focus_leaf;
         bool found = false;
-        for (std::size_t i = 0; i < leaves.size() && !want.empty(); ++i)
-            if (leaves[i].path == want) {
+        /* Rancho (2026-11-09, Hormiga's ask): the leaf, or the first leaf under
+         * a path above the leaves (an upper level, a herd chosen from a list);
+         * growing outwards in path order then takes its siblings first. */
+        for (std::size_t i = 0; i < leaves.size() && !want.empty() && !found; ++i)
+            if (leaves[i].path == want ||
+                (focus_rune.empty() && leaves[i].path.size() > want.size() &&
+                 leaves[i].path.compare(0, want.size(), want) == 0 && leaves[i].path[want.size()] == '.')) {
                 start = i;
                 found = true;
             }
@@ -86,7 +93,7 @@ Plan plan(Store& st, const Budget& budget, const std::string& focus_mantle, cons
                     start = i;
         if (cost(leaves[start]) > room) { // not one leaf fits this machine: a page that does
             first_page();
-            if (found) { // and the rune in focus, whatever page it is on
+            if (found && !focus_rune.empty()) { // and the rune in focus, whatever page it is on
                 auto& names = p.sel.by_name[m->name];
                 if (std::find(names.begin(), names.end(), focus_rune) == names.end()) names.push_back(focus_rune);
                 p.focus = want;

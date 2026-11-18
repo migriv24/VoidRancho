@@ -24,8 +24,9 @@ endif()
 option(RANCHO_BUILD_TESTS "Build and register Void Rancho's tests (default: only when built on its own)" ${_rancho_top_level})
 
 # The timings in okf/ were measured RelWithDebInfo; an unoptimized build runs
-# the tests about four times slower.
-if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
+# the tests about four times slower. Only when Rancho is the top level: a
+# parent's build type is the parent's (Void Squid's finding, 2026-11-09).
+if(_rancho_top_level AND NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
   set(CMAKE_BUILD_TYPE RelWithDebInfo CACHE STRING "Build type" FORCE)
 endif()
 
@@ -55,6 +56,17 @@ endif()
 if(NOT TARGET voidcore AND NOT EXISTS "${VOIDCORE_ROOT}/core/CMakeLists.txt")
   message(FATAL_ERROR "Void Core not found at ${VOIDCORE_ROOT} — clone it beside this repository or set VOIDCORE_ROOT")
 endif()
+# PHONES: one Core per app, and it must be static. Core's own CMake builds only
+# a shared library, which Android would package beside the app as a second .so
+# and iOS cannot ship unembedded. Until Core builds a static one, a phone build
+# takes its Core from a parent (Void Maiz builds a static `voidcore`) and is
+# refused here rather than quietly given the shared one (Void Maiz's ask,
+# 2026-11-02; its message to Core asks for the static build).
+if(NOT TARGET voidcore AND (ANDROID OR IOS OR CMAKE_SYSTEM_NAME STREQUAL "Android" OR CMAKE_SYSTEM_NAME STREQUAL "iOS"))
+  message(FATAL_ERROR "Void Rancho on a phone needs a static Void Core, and Core's own CMake builds only a shared "
+    "one. Add Void Maiz before Void Rancho (it defines a static `voidcore`), or define a static `voidcore` target "
+    "yourself before adding Rancho.")
+endif()
 if(NOT TARGET voidcore)
   add_subdirectory("${VOIDCORE_ROOT}/core" voidcore EXCLUDE_FROM_ALL)
 endif()
@@ -79,6 +91,10 @@ set(RANCHO_SOURCES
   src/matrix.cpp
   src/linalg.cpp
   src/segments.cpp
+  src/deed.cpp
+  src/rodeo.cpp
+  src/overlay.cpp
+  src/authority.cpp   # which file is in charge (okf/concepts/authority.md)
   src/capi.cpp
 )
 
@@ -98,13 +114,26 @@ if(NOT MSVC)
   target_compile_options(voidrancho PRIVATE -Wall -Wextra)
 endif()
 
+# ── the tool ─────────────────────────────────────────────────────────────────
+# `rancho`: make and inspect a database's deed (tools/rancho.cpp). Built when
+# Rancho is on its own, or when a host asks.
+option(RANCHO_BUILD_TOOLS "Build the rancho command-line tool (default: only when built on its own)" ${_rancho_top_level})
+if(RANCHO_BUILD_TOOLS)
+  add_executable(rancho_tool tools/rancho.cpp)
+  set_target_properties(rancho_tool PROPERTIES OUTPUT_NAME rancho)
+  target_link_libraries(rancho_tool PRIVATE voidrancho)
+  if(WIN32)
+    target_link_libraries(rancho_tool PRIVATE shell32) # CommandLineToArgvW: paths beyond the ANSI code page
+  endif()
+endif()
+
 # ── tests ────────────────────────────────────────────────────────────────────
 # Each is one executable, one function per promise, named for what it promises.
 # On by default only when Rancho is the top-level project: a host that adds us
 # as a subdirectory keeps its ctest to its own tests unless it asks for ours.
 if(RANCHO_BUILD_TESTS)
   enable_testing()
-  foreach(t store_test query_test working_set_test plan_test matrix_test media_test segments_test capi_test)
+  foreach(t store_test query_test working_set_test plan_test matrix_test media_test segments_test capi_test deed_test rodeo_test authority_test)
     add_executable(rancho_${t} tests/${t}.cpp)
     target_link_libraries(rancho_${t} PRIVATE voidrancho)
     target_include_directories(rancho_${t} PRIVATE vendor/json tests)

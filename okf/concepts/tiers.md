@@ -36,11 +36,43 @@ turns `\\nas\share\x` into `C:\nas\share\x`. Code that normalizes a path before 
 it lives will call every NAS path local — and open it in WAL. Rancho reads the spelling first
 and resolves with `GetFullPathNameW` (`media_test`).
 
+# One database on several tiers
+
+Since 2026-11-06 a database's parts may sit on different tiers at once: a live store on this
+disk, a pinned segments part on a NAS, and later a bucket. The [deed](/concepts/deed.md) says
+which part is where. A part on a tier that cannot be reached right now is a region not loaded,
+and the database still opens.
+
 # What tiers are not
 
 **Not sync.** Two people editing one database on two machines is Void Palabra's merge over
 Reticulum, arriving as commands. A shared drive holding segments lets a second machine *open*
 a database fast; it does not let two machines *write* one file.
+
+# On a phone (2026-11-09, Void Maiz's asks)
+
+- **Where each file goes.** A store, a deed and a blobs part are the record: `data_dir()`
+  (private, backed up). A segments part's restored copy (`DatabaseOptions::cache_dir`), a
+  `pack_into` copy made to be sent, and SQLite's spill files are derived or temporary:
+  `cache_dir()`, which the system may empty.
+- **SQLite's spill folder.** `OpenOptions::temp_dir` (and `DatabaseOptions::temp_dir`). An
+  Android app process has none of SQLite's defaults outside Void Maiz's shell, which sets
+  `TMPDIR`; iOS sets `TMPDIR` itself.
+- **Backgrounding.** A working set is durable when `WorkingSet::sync` returns: every
+  committed transaction survives an app kill under WAL with synchronous=NORMAL. So the one
+  call on `AppEvent::Background` is `sync`, and it costs what the edits since the last sync
+  touched (Hormiga measured 0.5 ms for an edit at 5×10⁵ runes).
+- **Memory.** `release_memory()` on a low-memory event. On Apple, `memory::process_bytes` reads
+  `phys_footprint`, the number jetsam acts on.
+- **One static Core.** Core's CMake builds only a shared library. On Android or iOS, Rancho
+  refuses to build it, and asks for a parent's static `voidcore` (Void Maiz defines one) until
+  Core builds a static one itself.
+- **App Group containers.** A store opened single-host holds `locking_mode=EXCLUSIVE`, and iOS
+  ends a suspended app that holds a file lock in a container shared with an extension
+  (`0xdead10cc`). Keep stores in the app's own container, or close them on backgrounding.
+- **CI** (`.github/workflows/ci.yml`): Linux, macOS and Windows build and test; Android (NDK,
+  arm64-v8a) and iOS (device) compile, through a superproject that adds Void Maiz first. The
+  phone jobs do not gate until they have been green once.
 
 # Status
 

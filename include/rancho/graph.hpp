@@ -43,6 +43,7 @@
 
 
 #include <cstdint>
+#include <map>
 #include <string>
 #include <vector>
 
@@ -99,6 +100,29 @@ struct Hierarchy {
 
 Hierarchy hierarchy(const Graph& g, std::uint32_t target_size, const LeidenOptions& options = {},
                     int max_depth = 6);
+
+/* Rancho (2026-11-09, Void Hormiga's "the overview"): A TREE ANYONE CAN
+ * BROWSE. Leiden at γ = 1 is right that a sparse graph has many small, nearly
+ * separate communities (23,607 at the top of Hormiga's stress database), but a
+ * root with 23,607 children is no hierarchy. `bound_fanout` adds levels so no
+ * node has more than `fanout` children, by Void Maiz's build_tree steps 2-4
+ * (voidmaiz/overview.cpp, offered by Hormiga):
+ *  1. the tops are merged along their strongest ties per member, none past a
+ *     size cap of max(largest, 4·n/fanout), until at most `fanout` remain;
+ *  2. what still exceeds it is BUNDLED: the largest half stand alone, the rest
+ *     share bundles (packing: nothing links them);
+ *  3. any node with more than `fanout` children is SLICED (packing).
+ * The new levels are prefixes and inserted digits; a leaf stays a leaf, and
+ * the order of leaves under one parent is kept. Deterministic. */
+enum class NodeKind : std::uint8_t { Community = 0, Bundle = 1, Slice = 2 };
+
+struct Bounded {
+    std::vector<std::vector<std::uint32_t>> path;            // per node, from the root
+    std::map<std::vector<std::uint32_t>, NodeKind> packing;  // inner nodes that are packing, by path
+    int depth = 0;
+};
+
+Bounded bound_fanout(const Graph& g, const Hierarchy& h, std::uint32_t fanout);
 
 /* Normalised mutual information between two labelings, in [0, 1]. */
 double nmi(const std::vector<std::uint32_t>& a, const std::vector<std::uint32_t>& b);

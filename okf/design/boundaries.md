@@ -3,7 +3,7 @@ type: Design
 title: Boundaries — what Rancho owns and what it refuses
 description: The division of labour across Void Core, Void Palabra, Void Bicho, Void Maiz and Void Hormiga's Antfarm; Rancho's railguard; and why the database is a library above Core rather than a part of it.
 tags: [status:current, audience:dev, confidence:asserted, foundation]
-timestamp: 2026-11-02T00:00:00Z
+timestamp: 2026-11-06T00:00:00Z
 ---
 
 # Boundaries
@@ -66,7 +66,31 @@ included without the rest of Rancho. Void Maiz's `voidmaiz_graph` is now a bridg
 `maiz::graph` names `rancho::graph` until Maiz's hosts move. Maiz keeps a frozen copy only for
 builds without Rancho beside it. Fixes go here.
 
-## 4. The overlap with Palabra's "persistence" — to settle with Palabra
+## 4. The line with Palabra
+
+**Stated explicitly, 2026-11-06, at the author's direction** (*"rancho and palabra are very closely
+related. We should explicitly distinguish them"*). The two are close relatives: both are about a
+database at rest and over time, both read Core's state and journal as data, and neither links the
+other. The line, in one sentence each:
+
+- **Void Palabra is the same database across copies and over time**: canonical bytes, content
+  names, history (utterances, cuts), the join of two states of one database, sync and
+  reconciliation between peers, capabilities, and the archive container.
+- **Void Rancho is the shape and size of a database, and the relations between different
+  databases**: the language of how a database is made, the deed and its parts, the store, indexes,
+  queries and paging at any size, derived data, and schemas, mappings, dataspaces and federations.
+
+In the algebra's terms ([the algebra](/design/the-algebra.md) §7), Palabra works **inside one
+schema** (instances, and their join) and Rancho works **between schemas** (mappings and their
+migrations). The law that joins them: Σ and Δ preserve colimits, so wherever Palabra's join is a
+colimit, **merging then mapping equals mapping then merging**. ORCHESTRA, the closest prior art,
+splits along the same line: the transport, history and merge of updates are Palabra's, and their
+translation through mappings, provenance through mappings and trust over mapping paths are
+Rancho's. The pair is recorded in Void Mago's `family.json` (`mago pair voidrancho voidpalabra`),
+because a fact about a pair belongs to neither repository. *Status: proposed*, until Palabra
+agrees by message.
+
+### 4.1 The earlier overlap: Palabra's "persistence"
 
 `VoidPalabra:/concepts/persistence.md` (2026-07-24) claims the container format, codecs,
 filesystem mapping and platform differences — *"how Void Core state becomes bytes on a real
@@ -82,6 +106,12 @@ rest". The proposed line:
   Palabra's canonical names where a segment needs one.
 
 To be put to Palabra as a message once the author agrees with the line.
+
+**Since 2026-11-06 the [deed](/concepts/deed.md) sits on this line too.** It says where a
+database's parts are and who the database is. That is placement and identity, not the bytes of
+a state. A Palabra archive could be one more form of part, read through Palabra. Whether
+Palabra's names for a state and the deed's id for a database are one thing or two goes in the
+same message.
 
 ## 5. The test for any future coupling
 

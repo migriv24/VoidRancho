@@ -263,6 +263,173 @@ void a_large_mantle_with_no_clustering_loads_its_first_runes() {
     CHECK(st.state(p.sel).size() <= tiny.text_bytes() * 5 / 4);
 }
 
+// ── the tree's top and the reseña (Rancho, 2026-11-09) ─────────────────────
+
+/* Many small pieces with nothing between most of them: what made the stress
+ * database's root 23,607 wide. `pairs` pairs, every tenth tied to the next. */
+std::string islands(int pairs) {
+    VcCore c;
+    c.register_glyph(R"({"glyph":"thing","label":"Thing","fields":[]})");
+    c.dispatch("mantle new org");
+    std::vector<std::string> cmds;
+    for (int i = 0; i < 2 * pairs; ++i) cmds.push_back("rune new thing r" + std::to_string(i));
+    for (int i = 0; i < pairs; ++i) {
+        cmds.push_back("link r" + std::to_string(2 * i) + " r" + std::to_string(2 * i + 1));
+        if (i % 10 == 0 && i + 1 < pairs) cmds.push_back("link r" + std::to_string(2 * i + 1) + " r" + std::to_string(2 * i + 2));
+    }
+    CHECK(c.dispatch(batch(cmds)).ok);
+    c.dispatch("use org");
+    return c.export_state();
+}
+
+/* Every node of the tree, read through the reseña's own queries. */
+struct Seen {
+    std::map<std::string, std::tuple<long long, long long, long long, std::string>> nodes; // runes, internal, outgoing, kind
+    std::map<std::tuple<std::string, std::string, std::string>, long long> ties;
+    long long widest = 0;
+};
+
+void walk(Store& st, const std::string& path, Seen& s) {
+    const auto n = st.cluster_node("org", path);
+    CHECK(n.has_value());
+    if (!n) return;
+    s.nodes[path] = {n->runes, n->internal, n->outgoing, n->kind};
+    const auto kids = st.cluster_children("org", path);
+    CHECK((long long)kids.size() == n->children);
+    s.widest = std::max(s.widest, (long long)kids.size());
+    long long under = 0;
+    for (const auto& k : kids) {
+        CHECK(k.parent == path);
+        under += k.runes;
+        walk(st, k.path, s);
+    }
+    if (!kids.empty()) CHECK(under == n->runes); // a node holds exactly what its children hold
+    for (const auto& t : st.cluster_ties("org", path)) s.ties[{path, t.a, t.b}] = t.links;
+}
+
+Seen seen(Store& st) {
+    Seen s;
+    walk(st, "", s);
+    return s;
+}
+
+void a_tree_has_a_top_anyone_can_browse() {
+    Store st(scratch("islands.store"));
+    import(st, islands(600));
+    ClusterOptions o;
+    o.target = 50;
+    o.fanout = 16;
+    const auto stats = st.cluster("org", o);
+    CHECK(stats.ok);
+    CHECK(stats.roots <= 16);
+    const Seen s = seen(st);
+    CHECK(s.widest <= 16);                              // no node opens onto more than the fanout
+    CHECK(std::get<0>(s.nodes.at("")) == 1200);         // every rune is under the mantle
+    bool packing = false;
+    for (const auto& [p, n] : s.nodes) packing = packing || std::get<3>(n) != "community";
+    CHECK(packing);                                     // islands with nothing between them are bundled, and say so
+    // a pair is still one herd: the levels were added above, never through, Leiden's communities
+    int together = 0;
+    for (int i = 0; i < 600; i += 7)
+        together += st.cluster_of("org", "r" + std::to_string(2 * i)) == st.cluster_of("org", "r" + std::to_string(2 * i + 1));
+    CHECK(together >= 80);
+    // with no fanout, the tree is Leiden's own: hundreds wide at the top
+    Store flat(scratch("islands-flat.store"));
+    import(flat, islands(600));
+    ClusterOptions f = o;
+    f.fanout = 0;
+    CHECK(flat.cluster("org", f).roots > 100);
+    // a selection by an upper path loads every leaf under it
+    const auto tops = st.cluster_children("org", "");
+    CHECK(!tops.empty());
+    Selection sel = Selection::none();
+    sel.by_cluster["org"] = {tops.front().path};
+    const json doc = json::parse(st.state(sel));
+    CHECK((long long)doc["mantles"][0]["runes"].size() == tops.front().runes);
+}
+
+void the_resena_counts_every_tie_and_write_back_keeps_it() {
+    Store st(scratch("resena.store"));
+    import(st, planted(8, 60));
+    ClusterOptions o;
+    o.target = 40;
+    o.fanout = 3; // forces levels above and slices below
+    CHECK(st.cluster("org", o).ok);
+    const Seen first = seen(st);
+    // the mantle's internal ties are every edge between two clustered runes (value edges to the measure are not)
+    long long ties = 0;
+    const json whole = json::parse(st.state()); // held: a loop over a temporary's member reads freed memory
+    for (const auto& m : whole["mantles"])
+        if (m["name"] == "org")
+            for (const auto& e : m["layout"]["edges"]) ties += e["to"] != "score";
+    CHECK(std::get<1>(first.nodes.at("")) == ties);
+    CHECK(std::get<2>(first.nodes.at("")) == 0);
+    CHECK(st.refresh_summaries("org"));
+    CHECK(seen(st).nodes == first.nodes && seen(st).ties == first.ties);
+
+    VcCore core;
+    core.register_glyph(R"({"glyph":"thing","label":"Thing","fields":["note"]})");
+    WorkingSet ws(st, core);
+    CHECK(ws.load(Selection::all()));
+    ws.dispatch("use org");
+    auto agrees = [&](const char* what) {
+        CHECK(ws.sync());
+        const Seen kept = seen(st);
+        CHECK(st.refresh_summaries("org"));
+        const Seen counted = seen(st);
+        const bool same = kept.nodes == counted.nodes && kept.ties == counted.ties;
+        if (!same) std::printf("    the reseña drifted after: %s\n", what);
+        CHECK(same);
+    };
+    CHECK(ws.dispatch("link r1 r470").ok);
+    agrees("a link across the tree");
+    CHECK(ws.dispatch("link r1 r470 --relation knows --weight 2.5").ok);
+    agrees("a second relation, weighted");
+    CHECK(ws.dispatch("unlink r1 r470").ok);
+    agrees("an unlink");
+    CHECK(ws.dispatch("rune rm r30").ok);
+    agrees("a rune removed with its ties");
+    CHECK(ws.dispatch("undo").ok);
+    agrees("the removal undone");
+    CHECK(ws.dispatch("rune new thing fresh").ok);
+    CHECK(ws.dispatch("link fresh r2").ok);
+    agrees("a new rune, not yet filed");
+    st.assign_cluster("org", "fresh", st.cluster_of("org", "r2"));
+    agrees("the new rune filed under a leaf");
+    CHECK(std::get<0>(seen(st).nodes.at("")) == 481);
+}
+
+void a_herd_is_found_by_path_and_runes_by_name() {
+    Store st(scratch("herd.store"));
+    import(st, planted(8, 60));
+    st.cluster("org", 60);
+    // clusters_of answers what cluster_of answers, in one statement
+    std::vector<std::string> names;
+    for (int i = 0; i < 480; i += 13) names.push_back("r" + std::to_string(i));
+    names.push_back("nobody");
+    const auto paths = st.clusters_of("org", names);
+    CHECK(paths.size() == names.size() - 1);
+    for (const auto& n : names)
+        if (n != "nobody") CHECK(paths.at(n) == st.cluster_of("org", n));
+    // names: a prefix is an index range, in name order; a part of a name, in any case
+    const auto pre = st.find_names("org", "r4", NameMatch::Prefix, 0);
+    CHECK(pre.size() == 1 + 10 + 80); // r4, r40..r49, r400..r479
+    CHECK(std::is_sorted(pre.begin(), pre.end()));
+    CHECK(st.find_names("org", "R47", NameMatch::Contains, 0).size() == 1 + 10); // r47, r470..r479
+    CHECK(st.find_names("org", "7", NameMatch::Contains, 5).size() == 5);
+    CHECK(st.find_names("org", "%", NameMatch::Contains, 0).empty()); // a wildcard is a character
+    // a plan grows from a herd chosen by its path
+    Budget small;
+    small.bytes = 8 * MB; // room for a few herds, not for all eight
+    const auto leaves = st.leaf_estimates("org");
+    const std::string herd = leaves.back().path;
+    const Plan p = plan(st, small, "org", {}, herd);
+    CHECK(p.partial);
+    CHECK(p.focus == herd);
+    const auto& chosen = p.sel.by_cluster.at("org");
+    CHECK(std::find(chosen.begin(), chosen.end(), herd) != chosen.end());
+}
+
 } // namespace
 
 int main() {
@@ -277,6 +444,9 @@ int main() {
         {"the rune in focus is always in the plan", the_rune_in_focus_is_always_in_the_plan},
         {"a large mantle with no clustering loads its first runes",
          a_large_mantle_with_no_clustering_loads_its_first_runes},
+        {"a tree has a top anyone can browse", a_tree_has_a_top_anyone_can_browse},
+        {"the reseña counts every tie, and write-back keeps it", the_resena_counts_every_tie_and_write_back_keeps_it},
+        {"a herd is found by path, and runes by name", a_herd_is_found_by_path_and_runes_by_name},
     };
     return test::run(cases);
 }

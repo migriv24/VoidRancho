@@ -4,7 +4,7 @@ title: Cluster
 description: A connected group of runes of bounded size, found from the graph itself (Leiden, recursively) — the one unit Rancho pages, stores as a segment, analyses and exports. Weights are first-class input, one relation at a time, and the settings are recorded beside the result.
 resource: src/store.cpp
 tags: [status:current, audience:dev, audience:library, confidence:asserted]
-timestamp: 2026-11-02T00:00:00Z
+timestamp: 2026-11-09T00:00:00Z
 ---
 
 A **cluster** is a connected set of runes, small enough for a weak device, found from the
@@ -53,6 +53,48 @@ edges (5.0), a decoy by many weak ones (0.05). Read without weights, clustering 
 decoy (NMI with the truth 0.001); read with them, the truth (NMI 1.0). On Hormiga's planted
 database the unweighted clustering recovers the groups at NMI 1.0, the same leaves on every
 run.
+
+# A top anyone can browse (`ClusterOptions::fanout`, 2026-11-09)
+
+Leiden at γ = 1 is right that a sparse graph has many small, nearly separate communities, and
+modularity never merges what is not linked. On Void Hormiga's stress store the root had
+**23,607 children**: no overview can start there (its "the overview", 2026-11-05). So `cluster`
+adds levels **above** Leiden's communities, until no node of the tree (the mantle itself
+included) has more than `fanout` children (default 250; 0 keeps Leiden's tree as it is). It
+uses Void Maiz's `build_tree` steps, now `graph::bound_fanout` in the leaf target:
+
+1. the tops are **merged along their strongest ties per member**, none past a size cap of
+   max(largest, 4·n/fanout), until at most `fanout` remain;
+2. what is still too many is **bundled**: the largest half stand alone, the rest share bundles;
+3. any node with more than `fanout` children is **sliced**.
+
+Bundles and slices are **packing**, and say so (`ClusterNode::kind`), so a view knows which
+groups mean something. The new levels are prefixes and inserted digits; a leaf stays a leaf and
+Leiden's communities are never cut. A `Selection` by an upper path loads every leaf under it.
+Modularity is still reported for Leiden's own communities. (`plan_test`: 600 islands, fanout 16:
+every node has at most 16 children, packing is marked, and pairs stay together; with no fanout,
+over 100 tops.)
+
+# The reseña (2026-11-09)
+
+Per node of the tree (`""` is the mantle itself): the runes under it, its **internal** ties
+(both ends under it), its **outgoing** ties (one end), with their weights; and per node, the
+ties **between its children** (`cluster_ties`). A tie is an edge with both ends clustered;
+value edges to measures are not ties. It is made when `cluster` runs, in one pass over the
+edges in bounded memory, and **kept by write-back**: a link made or removed, a rune deleted,
+restored or filed under a leaf adjusts exactly the nodes on its path. So an overview of the
+whole potrero reads the bodies it draws and the ties between them, never the mantle's edges
+(`cluster_node`, `cluster_children`, `cluster_ties`; `refresh_summaries` counts again).
+`plan_test` checks the mantle's internal ties against the document, and after each of seven
+edits through a working set (a link across the tree, a weighted second relation, an unlink, a
+removal and its undo, a new rune, then filed) checks that what write-back kept equals a recount.
+
+After a bulk load (a snapshot restored) the reseña is recounted; packing marks do not travel
+with the rows, so a restored tree's bundles and slices read as communities until the mantle is
+clustered again.
+
+**Planned:** the rest of Hormiga's summary per node (counts by glyph and by tag, the date range,
+the geographic bounding box) and sketches for what does not decompose.
 
 # Status
 

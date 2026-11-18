@@ -452,6 +452,84 @@ void a_store_hormiga_wrote_opens_and_is_migrated() {
     CHECK(again.ok() && again.opened_format() == 2);
 }
 
+std::string file_bytes(const fs::path& p) {
+    std::ifstream f(p, std::ios::binary);
+    return {std::istreambuf_iterator<char>(f), std::istreambuf_iterator<char>()};
+}
+
+/* Void Squid's finding (2026-11-09): its pre-Rancho assets.db shares three
+ * table names with a store, and opening it used to turn on WAL and add eight
+ * tables before failing. A file that is not a store is refused untouched. */
+void a_file_that_is_not_a_store_is_refused_untouched() {
+    const fs::path other = scratch("foreign.db");
+    {
+        sqlite3* db = nullptr;
+        sqlite3_open(other.string().c_str(), &db);
+        CHECK(sqlite3_exec(db,
+                           "CREATE TABLE runes(mantle TEXT, name TEXT, glyph TEXT);"
+                           "CREATE TABLE fields(mantle TEXT, rune TEXT, key TEXT, value TEXT);"
+                           "CREATE TABLE tags(mantle TEXT, rune TEXT, tag TEXT);"
+                           "CREATE TABLE links(mantle TEXT, src TEXT, dst TEXT);"
+                           "INSERT INTO runes VALUES('m','a','thing');",
+                           nullptr, nullptr, nullptr) == SQLITE_OK);
+        sqlite3_close(db);
+    }
+    const std::string before = file_bytes(other);
+    {
+        Store st(other);
+        CHECK(!st.ok());
+        CHECK(st.error().find("not a Rancho store") != std::string::npos);
+    }
+    CHECK(file_bytes(other) == before);
+    CHECK(!fs::exists(other.string() + "-wal"));
+
+    const fs::path text = scratch("not-a-database.store");
+    write_file(text, "{\"mantles\": []} and this is certainly not SQLite, whatever its name says...");
+    const std::string tbefore = file_bytes(text);
+    {
+        Store st(text);
+        CHECK(!st.ok());
+    }
+    CHECK(file_bytes(text) == tbefore);
+
+    // an empty file, and a store already made, still open
+    const fs::path empty = scratch("empty.store");
+    write_file(empty, "");
+    CHECK(Store(empty).ok());
+    CHECK(Store(empty).ok());
+}
+
+/* Void Hormiga's question (2026-11-03): a bundle a person carries need not
+ * carry the indexes every open rebuilds. */
+void a_packed_copy_is_smaller_and_opens_the_same() {
+    VcCore c;
+    c.register_glyph(kThing);
+    c.dispatch("mantle new org");
+    std::vector<std::string> cmds;
+    for (int i = 0; i < 3000; ++i) {
+        cmds.push_back("rune new thing t" + std::to_string(i));
+        cmds.push_back("tag t" + std::to_string(i) + " +c:" + std::to_string(i % 7) + " +type:thing");
+        if (i) cmds.push_back("link t" + std::to_string(i - 1) + " t" + std::to_string(i));
+    }
+    CHECK(c.dispatch(batch(cmds)).ok);
+    const std::string doc = c.export_state();
+    const fs::path src = scratch("pack-src.store"), full = scratch("pack-full.store"), packed = scratch("pack.store");
+    {
+        Store st(src);
+        JsonStream in = JsonStream::from_text(doc);
+        CHECK(st.import(in).ok);
+        CHECK(st.vacuum_into(full));
+        CHECK(st.pack_into(packed));
+    }
+    const auto a = fs::file_size(full), b = fs::file_size(packed);
+    std::printf("    copy %.0f KB, packed %.0f KB\n", a / 1024.0, b / 1024.0);
+    CHECK(b * 5 < a * 4); // at least a fifth smaller, for runes this small (a third, for Hormiga's)
+    Store st(packed);
+    CHECK(st.ok());
+    CHECK(plain(st.state()) == plain(doc));
+    CHECK(st.count("org", "c:3 AND type:thing") == 429); // the tag index is back
+}
+
 struct Run {
     double peak_mb = 0, seconds = 0;
 };
@@ -545,6 +623,8 @@ int main() {
         {"a rune keeps its row across imports", a_rune_keeps_its_row_across_imports},
         {"annotated fields become typed columns", annotated_fields_become_typed_columns},
         {"a store Hormiga wrote opens and is migrated", a_store_hormiga_wrote_opens_and_is_migrated},
+        {"a file that is not a store is refused untouched", a_file_that_is_not_a_store_is_refused_untouched},
+        {"a packed copy is smaller and opens the same", a_packed_copy_is_smaller_and_opens_the_same},
         {"importing 4x the data does not take 4x the memory",
          importing_four_times_the_data_does_not_take_four_times_the_memory},
         {"a selection and a query cost what they return", a_selection_and_a_query_cost_what_they_return},

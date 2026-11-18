@@ -11,7 +11,7 @@ namespace rancho {
 /* A prepared statement, reused: bind, step, reset. */
 class Stmt {
 public:
-    Stmt(sqlite3* db, const char* sql) : db_(db) { sqlite3_prepare_v2(db, sql, -1, &st_, nullptr); }
+    Stmt(sqlite3* db, const char* sql) { sqlite3_prepare_v2(db, sql, -1, &st_, nullptr); }
     Stmt(sqlite3* db, const std::string& sql) : Stmt(db, sql.c_str()) {}
     ~Stmt() { sqlite3_finalize(st_); }
     Stmt(const Stmt&) = delete;
@@ -62,7 +62,6 @@ public:
     double col_real(int i) { return sqlite3_column_double(st_, i); }
 
 private:
-    sqlite3* db_;
     sqlite3_stmt* st_ = nullptr;
 };
 

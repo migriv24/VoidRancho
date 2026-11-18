@@ -49,18 +49,24 @@ MatrixView matrix_view(Store& store, const std::string& mantle, const MatrixOpti
     };
     std::vector<R> rs;
     {
-        std::string sql = "SELECT r.id, COALESCE(x.row, -1), r.pos, r.name, COALESCE(r.rid,''), COALESCE(r.glyph,''),"
-                          " r.json FROM runes r LEFT JOIN rows x ON x.mkey=?1 AND x.rid=r.rid"
-                          " WHERE r.mantle=?2 AND r.deleted=0";
+        const std::string cols = "SELECT r.id, COALESCE(x.row, -1), r.pos, r.name, COALESCE(r.rid,''),"
+                                 " COALESCE(r.glyph,''), r.json";
+        std::string sql = cols + " FROM runes r LEFT JOIN rows x ON x.mkey=?1 AND x.rid=r.rid"
+                                 " WHERE r.mantle=?2 AND r.deleted=0";
         if (!opt.clusters.empty()) {
-            // the same index range Store::write_state reads a cluster path with
-            sql += " AND r.id IN (SELECT c.rune FROM clusters c WHERE c.mantle=?2 AND (c.always=1";
+            /* Driven FROM the clusters: the always-loaded runes through their
+             * partial index, each path as the index range Store::write_state
+             * reads. Written as one OR inside an IN, the planner read every
+             * cluster row of the mantle: ~300 ms a call at 5×10^5 runes,
+             * whatever the leaf (Void Hormiga, 2026-11-05). */
+            sql = "SELECT c.rune FROM clusters c WHERE c.mantle=?2 AND c.always=1";
             for (std::size_t k = 0; k < opt.clusters.size(); ++k) {
                 const std::string p = "?" + std::to_string(k + 3);
-                sql += " OR (c.path>=" + p + " AND c.path<=" + p + "||'.~' AND (c.path=" + p + " OR c.path>" + p +
-                       "||'.'))";
+                sql += " UNION SELECT c.rune FROM clusters c INDEXED BY clusters_by_path WHERE c.mantle=?2 AND c.path>=" +
+                       p + " AND c.path<=" + p + "||'.~' AND (c.path=" + p + " OR c.path>" + p + "||'.')";
             }
-            sql += "))";
+            sql = cols + " FROM (" + sql + ") s CROSS JOIN runes r ON r.id=s.rune"
+                         " LEFT JOIN rows x ON x.mkey=?1 AND x.rid=r.rid WHERE r.deleted=0";
         }
         Stmt q(db, sql);
         q.text(1, key).integer(2, mid);

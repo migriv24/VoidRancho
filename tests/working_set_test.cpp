@@ -194,12 +194,92 @@ void the_tags_an_actor_writes_carry_its_name() {
     CHECK(by["status:checked"] == "person:ada");
 }
 
+/* Rancho (2026-11-09, Void Hormiga's "the frontier"): the fringe puts every
+ * tie of a held rune in Core's document, and the store says what lies beyond
+ * (los mojones) and what is held complete (la cuenta). */
+void the_fringe_and_la_cuenta_say_what_is_held() {
+    VcCore c;
+    c.register_glyph(kThing);
+    c.dispatch("mantle new org");
+    std::vector<std::string> cmds;
+    for (const char* n : {"a1", "a2", "b1", "b2", "hub"}) cmds.push_back(std::string("rune new thing ") + n);
+    cmds.push_back("tag b1 +colour:red");
+    cmds.push_back("link a1 a2");
+    cmds.push_back("link a2 b1"); // leaves the held part
+    cmds.push_back("link b2 a1"); // enters it
+    cmds.push_back("link a1 ghost"); // names no rune at all
+    for (int i = 0; i < 6; ++i) {
+        cmds.push_back("rune new thing h" + std::to_string(i));
+        cmds.push_back("link hub h" + std::to_string(i));
+    }
+    CHECK(c.dispatch(batch(cmds)).ok);
+    c.dispatch("use org");
+    Store st(scratch("fringe.store"));
+    JsonStream in = JsonStream::from_text(c.export_state());
+    CHECK(st.import(in).ok);
+
+    Selection sel = Selection::none();
+    sel.by_name["org"] = {"a1", "a2", "hub"};
+    // without the fringe: only the edge between held runes
+    {
+        const json doc = json::parse(st.state(sel));
+        CHECK(doc["mantles"][0]["layout"]["edges"].size() == 1);
+        const Frontier f = st.frontier(sel);
+        CHECK(f.mantles.at("org").held == 3);
+        CHECK(f.mantles.at("org").leaving == 3 + 6); // a2-b1, a1-b2, a1-ghost, and the hub's six
+        CHECK(f.mantles.at("org").stubs.empty());
+    }
+    sel.fringe = true;
+    sel.fringe_cap = 4;
+    const json doc = json::parse(st.state(sel));
+    std::set<std::pair<std::string, std::string>> edges;
+    for (const auto& e : doc["mantles"][0]["layout"]["edges"])
+        edges.emplace(e["from"].get<std::string>(), e["to"].get<std::string>());
+    CHECK(edges.count({"a1", "a2"}) && edges.count({"a2", "b1"}) && edges.count({"b2", "a1"}) &&
+          edges.count({"a1", "ghost"}));
+    CHECK(edges.size() == 4 + 4); // the hub's first four far ends, by name
+    CHECK(edges.count({"hub", "h0"}) && edges.count({"hub", "h3"}) && !edges.count({"hub", "h4"}));
+    CHECK(doc["mantles"][0]["runes"].size() == 3); // a stub is never a loaded rune
+    // Core takes a document with dangling edges (SPEC §3.7)
+    VcCore core;
+    core.register_glyph(kThing);
+    CHECK(core.replace_state(doc.dump()));
+
+    const Frontier f = st.frontier(sel);
+    const MantleFrontier& m = f.mantles.at("org");
+    CHECK(m.hubs.size() == 1 && m.hubs.at("hub") == 2);
+    std::map<std::string, Stub> stubs;
+    for (const auto& s : m.stubs) stubs[s.name] = s;
+    CHECK(stubs.size() == 3 + 4);
+    CHECK(stubs.at("b1").exists && stubs.at("b1").glyph == "thing");
+    CHECK(stubs.at("b1").tags == std::vector<std::string>{"colour:red"});
+    CHECK(!stubs.at("ghost").exists); // not "not loaded": not there
+    CHECK(!f.complete("org"));
+
+    // la cuenta, by cluster: a leaf is complete when nothing it ties to is left out
+    st.cluster("org", 2);
+    Selection by_leaf = Selection::none();
+    for (const auto& l : st.leaf_estimates("org")) by_leaf.by_cluster["org"].push_back(l.path);
+    by_leaf.fringe = true;
+    by_leaf.fringe_cap = 100;
+    const Frontier all = st.frontier(by_leaf);
+    CHECK(all.mantles.at("org").complete_leaves.size() == st.leaf_estimates("org").size());
+    Selection one = Selection::none();
+    const std::string a1 = st.cluster_of("org", "a1");
+    one.by_cluster["org"] = {a1};
+    CHECK(!st.frontier(one).complete("org", a1)); // no fringe: a1's edge to ghost is not in the document
+    one.fringe = true;
+    CHECK(st.frontier(one).complete("org", a1)); // with it, every tie is in the document
+}
+
 // ── the random walk ─────────────────────────────────────────────────────────
 
-void walk(bool through) {
-    Pair p(database(), scratch(through ? "walk-fast.store" : "walk.store"));
+void walk(bool through, bool fringe = false) {
+    Pair p(database(), scratch(std::string(fringe ? "fringe-" : "") + (through ? "walk-fast.store" : "walk.store")));
     p.through = through;
-    CHECK(p.set.load(one_cluster()));
+    Selection sel = one_cluster();
+    sel.fringe = fringe; // Rancho (2026-11-09): Core holds every tie of a held rune, as dangling edges
+    CHECK(p.set.load(sel));
     std::mt19937 rng(20261027);
     std::vector<std::string> history;
     int fresh = 0;
@@ -253,6 +333,10 @@ void walk(bool through) {
 
 void a_random_walk_keeps_the_store_equal_to_the_whole_database() { walk(false); }
 void the_fast_path_keeps_it_equal_too() { walk(true); }
+void with_the_fringe_held_both_paths_keep_it_equal_too() {
+    walk(false, true);
+    walk(true, true);
+}
 
 } // namespace
 
@@ -270,6 +354,8 @@ int main() {
         {"a random walk keeps the store equal to the whole database",
          a_random_walk_keeps_the_store_equal_to_the_whole_database},
         {"the fast path keeps it equal too", the_fast_path_keeps_it_equal_too},
+        {"with the fringe held, both paths keep it equal too", with_the_fringe_held_both_paths_keep_it_equal_too},
+        {"the fringe and la cuenta say what is held and what is not", the_fringe_and_la_cuenta_say_what_is_held},
     };
     return test::run(cases);
 }

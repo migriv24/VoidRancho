@@ -88,5 +88,41 @@ allowed to corrupt it. Elsewhere it is WAL. See [tiers](/concepts/tiers.md) and
 drops the store's copy with `remove_blob(path)` or `clear_blobs()`. Both change no rune, edge or
 tag, because blobs are not part of the document. `compact()` (SQLite's `VACUUM`) gives the freed
 pages back to the disk. It rewrites the whole file, so the host decides when to pay for it.
+Since 2026-11-06 (the [deed](/concepts/deed.md)) a store can write its mantles alone
+(`write_mantles`, which `write_state` is now written through, byte for byte the same), and lists its mantle names
+and top-level keys cheaply (`mantle_names`, `top_keys`, `top`), so a database of several stores is
+written as one document, row by row. `leaves` now says in its comment that it is exact and
+reads every cluster row; a list for a person is `leaf_estimates`.
+
+**Since 2026-11-09:**
+- **A file that is not a store is refused untouched** (Void Squid's finding). Opening used to
+  write first: WAL on, eight tables added, and only then a failure, so Squid's pre-Rancho
+  `assets.db` (three of its table names are ours) was changed by `rancho ids`. Now the
+  constructor decides first, writing nothing: a store is an empty file, a file whose
+  `store_meta` names a format, or a file with Hormiga's format-1 tables. Anything else, a
+  foreign SQLite or not a database at all, is refused with its tables named, byte for byte as
+  it was (`store_test`). A file another connection holds exclusively is reported as in use,
+  as before.
+- **`pack_into`**: a copy without the indexes every open rebuilds, for a file that is carried.
+  Void Hormiga asked why a v4 bundle is 2.5 times its v3 one. Measured on an 8×10⁴-rune store
+  (26.7 MB of JSON, 67.7 MB of store), it is the round-trip law, not waste: runes and edges are
+  35 MB (Core's own text, kept byte for byte, with its columns), tags 14 MB (rows and two
+  indexes), the row index 4.7 MB, and the other indexes 11 MB. Packed, the indexes go, and the
+  first open of the copy builds them again.
+- **`find_names`**: by prefix (one index range, in name order) or by part of a name (ASCII
+  letters in any case, reading names until the limit). **`clusters_of(names)`**: leaves in one
+  statement. The [cluster](/concepts/cluster.md) tree's upper levels and its reseña.
+- **Phones** (Void Maiz's asks): `OpenOptions::temp_dir` sets SQLite's process-wide spill
+  folder (an Android app outside Maiz's shell has none), and `release_memory()` gives the page
+  cache back on a low-memory event. A working set is durable when `WorkingSet::sync` returns
+  (WAL, synchronous=NORMAL), so backgrounding needs that one call, which costs what the edits
+  since the last sync touched. See [tiers](/concepts/tiers.md) for which files go where.
+- **Overlays** are kept in a store (`overlays`, `put_overlay`), written only by the
+  [deed](/concepts/deed.md)'s `record_overlay`.
+- **Two connections** to one store work on a local disk, through WAL: one writer at a time,
+  the other waiting up to two seconds. On a network path a store is opened single-host, with
+  an exclusive lock held until close, so a second connection, **even in the same process**, is
+  refused. A host that reads on a worker there shares one `Store` and serializes its calls.
+
 Not yet: blobs by content hash (they are keyed by path; Palabra's
 content-addressed blocks are the plan), and `ls --kind` as a query filter.

@@ -344,6 +344,178 @@ Hierarchy hierarchy(const Graph& g, std::uint32_t target, const LeidenOptions& o
     return h;
 }
 
+/* Rancho (2026-11-09, Void Hormiga's "the overview"): Void Maiz's build_tree
+ * steps 2-4 (voidmaiz/overview.cpp), applied to a hierarchy's paths. */
+Bounded bound_fanout(const Graph& g, const Hierarchy& h, std::uint32_t fanout) {
+    Bounded out;
+    out.path = h.path;
+    const std::uint32_t n = (std::uint32_t)out.path.size();
+    const std::uint32_t F = std::max<std::uint32_t>(2, fanout);
+    if (n == 0) return out;
+
+    // ── 1. the tops: merged along their strongest ties, then bundled ──
+    std::uint32_t T = 0;
+    for (const auto& p : out.path)
+        if (!p.empty()) T = std::max(T, p[0] + 1);
+    if (T > F) {
+        std::vector<double> sz(T, 0);
+        for (const auto& p : out.path)
+            if (!p.empty()) sz[p[0]] += 1;
+        struct Tie {
+            std::uint32_t a, b;
+            double w;
+        };
+        std::vector<Tie> ties;
+        for (std::uint32_t v = 0; v < g.n && v < n; ++v) {
+            if (out.path[v].empty()) continue;
+            for (std::uint64_t e = g.offsets[v]; e < g.offsets[v + 1]; ++e) {
+                const std::uint32_t u = g.adj[e];
+                if (u <= v || u >= n || out.path[u].empty()) continue;
+                std::uint32_t a = out.path[v][0], b = out.path[u][0];
+                if (a == b) continue;
+                if (a > b) std::swap(a, b);
+                ties.push_back({a, b, g.w[e]});
+            }
+        }
+        std::sort(ties.begin(), ties.end(), [](const Tie& x, const Tie& y) { return x.a != y.a ? x.a < y.a : x.b < y.b; });
+        std::size_t w = 0; // parallel ties summed
+        for (std::size_t i = 0; i < ties.size(); ++i) {
+            if (w && ties[w - 1].a == ties[i].a && ties[w - 1].b == ties[i].b) ties[w - 1].w += ties[i].w;
+            else ties[w++] = ties[i];
+        }
+        ties.resize(w);
+        double largest = 0;
+        for (const double s : sz) largest = std::max(largest, s);
+        // strongest first, per member: two crowds joined by one link are not close
+        std::stable_sort(ties.begin(), ties.end(), [&](const Tie& x, const Tie& y) {
+            return x.w / (sz[x.a] * sz[x.b]) > y.w / (sz[y.a] * sz[y.b]);
+        });
+        const double cap = std::max(largest, 4.0 * (double)n / (double)F);
+        std::vector<std::uint32_t> uf(T);
+        std::vector<double> usize(sz);
+        std::iota(uf.begin(), uf.end(), 0u);
+        auto find = [&](std::uint32_t x) {
+            while (uf[x] != x) x = uf[x] = uf[uf[x]];
+            return x;
+        };
+        std::uint32_t groups = T;
+        for (const auto& t : ties) {
+            if (groups <= F) break;
+            std::uint32_t ra = find(t.a), rb = find(t.b);
+            if (ra == rb || usize[ra] + usize[rb] > cap) continue;
+            if (rb < ra) std::swap(ra, rb);
+            uf[rb] = ra;
+            usize[ra] += usize[rb];
+            --groups;
+        }
+        // the groups, in order of their first member; a member's place in its group
+        std::vector<std::vector<std::uint32_t>> members(T);
+        for (std::uint32_t i = 0; i < T; ++i) members[find(i)].push_back(i);
+        struct Group {
+            std::vector<std::uint32_t> tops;
+            double size;
+        };
+        std::vector<Group> gs;
+        for (std::uint32_t i = 0; i < T; ++i)
+            if (!members[i].empty()) gs.push_back({std::move(members[i]), usize[i]});
+        // units at the root: a group, or a bundle of groups (packing: nothing links them)
+        std::vector<std::vector<std::uint32_t>> units; // indices into gs
+        if (gs.size() <= F) {
+            for (std::uint32_t i = 0; i < gs.size(); ++i) units.push_back({i});
+        } else {
+            std::vector<std::uint32_t> order(gs.size());
+            std::iota(order.begin(), order.end(), 0u);
+            std::stable_sort(order.begin(), order.end(), [&](std::uint32_t a, std::uint32_t b) { return gs[a].size > gs[b].size; });
+            const std::size_t keep = F / 2, bundles = F - keep, rest = order.size() - keep;
+            const std::size_t per = (rest + bundles - 1) / bundles;
+            for (std::size_t i = 0; i < keep; ++i) units.push_back({order[i]});
+            for (std::size_t i = keep; i < order.size(); i += per) {
+                std::vector<std::uint32_t> chunk(order.begin() + (std::ptrdiff_t)i,
+                                                 order.begin() + (std::ptrdiff_t)std::min(order.size(), i + per));
+                std::sort(chunk.begin(), chunk.end());
+                units.push_back(std::move(chunk));
+            }
+        }
+        // each old top's new prefix
+        std::vector<std::vector<std::uint32_t>> prefix(T);
+        for (std::uint32_t u = 0; u < units.size(); ++u) {
+            const bool bundle = units[u].size() > 1;
+            if (bundle) out.packing[{u}] = NodeKind::Bundle;
+            for (std::uint32_t k = 0; k < units[u].size(); ++k) {
+                const Group& gr = gs[units[u][k]];
+                for (std::uint32_t m = 0; m < gr.tops.size(); ++m) {
+                    std::vector<std::uint32_t> p{u};
+                    if (bundle) p.push_back(k);
+                    if (gr.tops.size() > 1) p.push_back(m);
+                    prefix[gr.tops[m]] = std::move(p);
+                }
+            }
+        }
+        for (auto& p : out.path) {
+            if (p.empty()) continue;
+            std::vector<std::uint32_t> q = prefix[p[0]];
+            q.insert(q.end(), p.begin() + 1, p.end());
+            p = std::move(q);
+        }
+    }
+
+    // ── 2. no node opens onto more than F children: the rest are sliced ──
+    std::vector<std::uint32_t> order(n);
+    std::iota(order.begin(), order.end(), 0u);
+    std::stable_sort(order.begin(), order.end(), [&](std::uint32_t a, std::uint32_t b) { return out.path[a] < out.path[b]; });
+    std::size_t longest = 0;
+    for (const auto& p : out.path) longest = std::max(longest, p.size());
+    auto same_prefix = [&](std::uint32_t a, std::uint32_t b, std::size_t d) {
+        const auto& x = out.path[a];
+        const auto& y = out.path[b];
+        return x.size() >= d && y.size() >= d && std::equal(x.begin(), x.begin() + (std::ptrdiff_t)d, y.begin());
+    };
+    for (std::size_t d = 0; d < longest; ++d) {
+        std::size_t i = 0;
+        while (i < n) {
+            if (out.path[order[i]].size() <= d) {
+                ++i;
+                continue;
+            }
+            std::size_t j = i + 1;
+            while (j < n && out.path[order[j]].size() > d && same_prefix(order[i], order[j], d)) ++j;
+            // order[i, j): one parent's children at depth d, in sorted order
+            std::uint32_t k = 0;
+            for (std::size_t x = i; x < j; ++x)
+                if (x == i || out.path[order[x]][d] != out.path[order[x - 1]][d]) ++k;
+            if (k > F) {
+                std::size_t digits = 1;
+                for (std::uint64_t span = F; span < k; span *= F) ++digits;
+                std::uint32_t rank = 0;
+                // ranks first (the values are about to change)
+                std::vector<std::uint32_t> ranks(j - i);
+                for (std::size_t x = i; x < j; ++x) {
+                    if (x > i && out.path[order[x]][d] != out.path[order[x - 1]][d]) ++rank;
+                    ranks[x - i] = rank;
+                }
+                for (std::size_t x = i; x < j; ++x) {
+                    auto& p = out.path[order[x]];
+                    std::vector<std::uint32_t> ds(digits);
+                    std::uint32_t r = ranks[x - i];
+                    for (std::size_t q = digits; q-- > 0;) {
+                        ds[q] = r % F;
+                        r /= F;
+                    }
+                    p.erase(p.begin() + (std::ptrdiff_t)d);
+                    p.insert(p.begin() + (std::ptrdiff_t)d, ds.begin(), ds.end());
+                    for (std::size_t q = 1; q < digits; ++q)
+                        out.packing[std::vector<std::uint32_t>(p.begin(), p.begin() + (std::ptrdiff_t)(d + q))] =
+                            NodeKind::Slice;
+                    longest = std::max(longest, p.size());
+                }
+            }
+            i = j;
+        }
+    }
+    for (const auto& p : out.path) out.depth = std::max(out.depth, (int)p.size());
+    return out;
+}
+
 double nmi(const std::vector<std::uint32_t>& a, const std::vector<std::uint32_t>& b) {
     const std::size_t n = std::min(a.size(), b.size());
     if (n == 0) return 0;

@@ -43,8 +43,11 @@ struct Plan {
     std::string focus;             // the leaf it was built around, "" if none
 };
 
-/* `focus_rune` (in `focus_mantle`), when given, is in the plan. */
+/* `focus_rune` (in `focus_mantle`), when given, is in the plan. Else
+ * `focus_leaf`, a cluster path (a leaf, or a node above leaves), is where it
+ * grows from (Rancho, 2026-11-09: a herd chosen from a list has a path, not a
+ * rune). */
 Plan plan(Store& store, const Budget& budget, const std::string& focus_mantle = {},
-          const std::string& focus_rune = {});
+          const std::string& focus_rune = {}, const std::string& focus_leaf = {});
 
 } // namespace rancho

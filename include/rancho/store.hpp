@@ -86,12 +86,28 @@ struct Selection {
     /* mantle -> cluster paths ("12", "12.4"): a path loads every leaf under it,
      * and the mantle's always-loaded runes (its measures) come with any. */
     std::map<std::string, std::vector<std::string>> by_cluster;
+    /* Rancho (2026-11-09, Void Hormiga's "the frontier"): THE FRINGE. Keep
+     * the edges with ONE end held as well, as dangling edges (legal: SPEC
+     * §3.7), so Core sees every tie a held rune has. A held rune with more
+     * than `fringe_cap` far ends is a hub: its edges to the first `fringe_cap`
+     * far ends (in name order) are kept, the rest are counted (Store::frontier).
+     * Off: an edge is written only when both its ends are held. */
+    bool fringe = false;
+    std::uint32_t fringe_cap = 64;
     static Selection all() { return {}; }
     static Selection none() {
         Selection s;
         s.everything = false;
         return s;
     }
+};
+
+/* Rancho (2026-11-06): a mantle as a deed names it. `key` is its Core id
+ * (`mantle.id`, minted once and kept by a rename), or "name:<name>" for a
+ * mantle written without one, as the row index keys it. A name is for a person:
+ * a rename changes it and nothing that names the key. */
+struct MantleRef {
+    std::string key, name;
 };
 
 struct MantleInfo {
@@ -127,6 +143,12 @@ struct ClusterOptions {
      * one relation in `relations`; and a weight must be positive. Off: every
      * edge is a tie of strength 1. */
     bool weighted = false;
+    /* Rancho (2026-11-09, Void Hormiga's "the overview"): no node of the tree,
+     * the mantle itself included, has more than this many children. Levels
+     * are added above Leiden's communities, merged along their ties, then
+     * bundled and sliced where nothing links them (rancho/graph.hpp,
+     * bound_fanout). 0: Leiden's tree as it is. */
+    std::uint32_t fanout = 250;
     std::string settings_json() const;
 };
 
@@ -134,6 +156,7 @@ struct ClusterStats {
     bool ok = false;
     std::string error;
     long long runes = 0, leaves = 0, always = 0;
+    long long roots = 0; // the mantle's children in the tree
     int depth = 0;
     double modularity = 0, seconds = 0;
 };
@@ -151,8 +174,71 @@ struct TagRow {
     std::string tag, source;
 };
 
+/* Rancho (2026-11-09): THE FRONTIER of a selection (okf/concepts/frontier.md;
+ * Void Hormiga's issue #2). EL MOJÓN: the far end of an edge that leaves what
+ * is held, with what a view needs to draw it. `exists` false: the edge names
+ * no rune at all (SPEC §3.7's not-yet-created knowledge), which Core alone
+ * cannot tell from a rune that is not loaded. */
+struct Stub {
+    std::string name, glyph, leaf; // leaf: its cluster path, "" if none
+    std::vector<std::string> tags;
+    bool exists = false;
+};
+
+/* LA CUENTA: what a selection holds COMPLETE in one mantle. A region is
+ * complete when every rune in it is held and every edge with an end in it is
+ * in the document: an answer that reads only that region is settled (cabal). */
+struct MantleFrontier {
+    bool whole = false;                         // held whole: complete
+    long long held = 0;                         // runes held
+    std::vector<std::string> complete_leaves;   // leaves held complete, in path order
+    long long leaving = 0;                      // distinct (held, far) pairs: edges that leave
+    std::vector<Stub> stubs;                    // los mojones, when the selection keeps its fringe
+    std::map<std::string, long long> hubs;      // a held rune -> its far ends past fringe_cap, counted
+};
+
+struct Frontier {
+    std::map<std::string, MantleFrontier> mantles;
+    /* True if `leaf` of `mantle` (or the whole mantle, when `leaf` is "") is
+     * held complete. */
+    bool complete(const std::string& mantle, const std::string& leaf = {}) const;
+};
+
+/* Rancho (2026-11-09): THE RESEÑA, one node of a mantle's cluster tree as
+ * the store summarizes it ("" is the mantle itself). A tie is an edge with
+ * both ends clustered; value edges to measures are not ties. */
+struct ClusterNode {
+    std::string path, parent;
+    std::string kind;              // "community", or packing: "bundle", "slice"
+    long long runes = 0;           // under it
+    long long children = 0;
+    long long internal = 0;        // ties with both ends under it
+    long long outgoing = 0;        // ties with one end under it
+    double internal_weight = 0, outgoing_weight = 0;
+};
+
+/* The ties between two children `a` < `b` of one node. */
+struct ClusterTie {
+    std::string a, b;
+    long long links = 0;
+    double weight = 0;
+};
+
+enum class NameMatch {
+    Prefix,   // names starting with the text, byte for byte: one index range
+    Contains, // names containing it, ASCII letters in any case: reads the mantle's names until `limit`
+};
+
 struct OpenOptions {
     Sharing sharing = Sharing::Auto; // rancho/media.hpp
+    /* Rancho (2026-11-09, Void Maiz's phone asks): where SQLite spills a sort
+     * or an index build that does not fit its cache. Empty: SQLite's own
+     * search ($SQLITE_TMPDIR, $TMPDIR, /var/tmp, /usr/tmp, /tmp, "."), which
+     * finds nothing writable in an Android app process outside Void Maiz's
+     * shell (it sets TMPDIR to data_dir()/tmp); iOS sets TMPDIR itself. The
+     * setting is SQLite's, for the whole process: the first store opened with
+     * one sets it, and later ones may not change it. */
+    std::filesystem::path temp_dir;
 };
 
 class Store {
@@ -185,6 +271,24 @@ public:
     /* The state document, whole or as `sel` chooses. */
     bool write_state(std::ostream& out, const Selection& sel = Selection::all());
     std::string state(const Selection& sel = Selection::all());
+    /* Rancho (2026-11-06): the mantle objects alone, comma-separated, for the
+     * mantles `keep` accepts (all, if empty); `first` says whether one has been
+     * written before, and is updated. What a database of several stores writes
+     * its document from (rancho/deed.hpp). */
+    bool write_mantles(std::ostream& out, const Selection& sel, const std::function<bool(const MantleRef&)>& keep,
+                       bool& first);
+    /* Rancho (2026-11-09): what `sel` leaves out, and what it holds whole:
+     * los mojones and la cuenta. Costs what the selection holds, as `state`
+     * does, plus its edges that leave. */
+    Frontier frontier(const Selection& sel);
+    /* The live mantles' names in order, cheaply (no row counts); the
+     * top-level keys in order ("mantles" among them); and one key's JSON
+     * (none for "mantles", or a key the document did not have). */
+    std::vector<std::string> mantle_names();
+    /* The same, with each mantle's key: what a deed names it by (MantleRef). */
+    std::vector<MantleRef> mantle_refs();
+    std::vector<std::string> top_keys();
+    std::optional<std::string> top(const std::string& key);
 
     std::vector<MantleInfo> mantles(); // exact: counts every row
 
@@ -200,6 +304,14 @@ public:
     /* A consistent, compacted copy of the whole store at `out` (SQLite's
      * VACUUM INTO), taken without stopping it. */
     bool vacuum_into(const std::filesystem::path& out);
+    /* Rancho (2026-11-09, Void Hormiga's question about a v4 bundle's size):
+     * the same copy WITHOUT the indexes every open rebuilds, for a file that is
+     * carried (emailed, put on a USB stick) rather than worked in. A store is
+     * about 2.5 times its document's JSON: the document's own text (kept byte
+     * for byte, the round-trip law) is half of it, and the tags, the row index
+     * and the indexes the rest. Packed, the indexes are gone (about a third);
+     * the first open of the copy builds them again. */
+    bool pack_into(const std::filesystem::path& out);
 
     /* The store's own notes, as text. "" when unset. */
     std::string meta(const std::string& key);
@@ -264,6 +376,25 @@ public:
      * `begin`/`commit`. */
     bool compact();
 
+    /* Rancho (2026-11-09, Void Maiz's phone asks): give back the page cache's
+     * memory (sqlite3_db_release_memory), for a host's low-memory event. The
+     * store keeps working; the next reads fill the cache again. Returns the
+     * bytes freed, as SQLite counts them. Nothing is lost: every committed
+     * write is already on disk (WAL, synchronous=NORMAL), so a working set is
+     * durable as soon as `WorkingSet::sync` returns, and an app sent to the
+     * background needs that one call. */
+    long long release_memory();
+
+    // ── overlays (rancho/overlay.hpp; Rancho, 2026-11-09) ────────────────
+    /* A person's edits over part `base` of a database, kept in this store
+     * (its home, usually): per base mantle key and rune spirit id, the
+     * difference overlay::diff made. "" forgets it. Written only by
+     * Database::record_overlay, from what Core says. */
+    void put_overlay(const std::string& base, const std::string& mkey, const std::string& rid, const std::string& diff);
+    std::map<std::string, std::string> overlays(const std::string& base, const std::string& mkey); // rid -> diff
+    /* A live rune's JSON by its mantle's key and its spirit id. */
+    std::optional<std::string> rune_by_id(const std::string& mkey, const std::string& rid);
+
     // ── write-back (rancho/working_set.hpp is its caller) ─────────────────
     bool begin();
     bool commit();
@@ -308,7 +439,10 @@ public:
     ClusterStats cluster(const std::string& mantle, std::uint32_t target = 2000, const Progress& progress = {});
     /* The settings the mantle was last clustered with, "" if never. */
     std::string cluster_settings(const std::string& mantle);
-    std::vector<ClusterLeaf> leaves(const std::string& mantle); // sorted by path
+    /* Sorted by path. EXACT, and so it reads every cluster row of the mantle:
+     * 12 s at 5×10^5 runes. A list for a person to choose from is
+     * `leaf_estimates`, the same leaves from the estimates table, in ms. */
+    std::vector<ClusterLeaf> leaves(const std::string& mantle);
     /* Runes in their order from `offset`, while their bytes fit `byte_cap`
      * (at least one), and at most `max_runes` of them (0: no limit). */
     Page page(const std::string& mantle, long long offset, std::uint64_t byte_cap, long long max_runes = 0);
@@ -317,6 +451,29 @@ public:
     std::string cluster_of(const std::string& mantle, const std::string& rune);
     /* File a rune under a leaf (a rune made after the clustering). */
     void assign_cluster(const std::string& mantle, const std::string& rune, const std::string& path);
+    /* Rancho (2026-11-09): the leaf of each of `runes` that has one, in one
+     * statement (0.43 ms a rune, one at a time, was 26 s for a loaded part). */
+    std::map<std::string, std::string> clusters_of(const std::string& mantle, const std::vector<std::string>& runes);
+
+    /* THE RESEÑA (Rancho, 2026-11-09; Void Hormiga's issue #2 and "the
+     * overview"). Made when `cluster` runs and kept by write-back: a link made
+     * or removed, a rune deleted, restored or filed under a leaf. So an
+     * overview of the whole potrero reads the nodes it draws, never the
+     * mantle's edges. Empty for a mantle never clustered. */
+    std::optional<ClusterNode> cluster_node(const std::string& mantle, const std::string& path);
+    std::vector<ClusterNode> cluster_children(const std::string& mantle, const std::string& path); // "" the tops
+    /* The ties between children of `parent`, at least `min_links` each. */
+    std::vector<ClusterTie> cluster_ties(const std::string& mantle, const std::string& parent, long long min_links = 1);
+    /* Count them again from the edges: one pass, bounded memory. After a bulk
+     * load, or to check that write-back kept them. Packing marks are kept. */
+    bool refresh_summaries(const std::string& mantle);
+
+    /* Rancho (2026-11-09, Hormiga's ask): live runes by part of their name,
+     * for a search over the whole potrero. Prefix: in name order. Contains:
+     * in document order. `limit` 0: no limit. */
+    std::vector<std::string> find_names(const std::string& mantle, const std::string& text,
+                                        NameMatch how = NameMatch::Contains, long long limit = 50,
+                                        long long offset = 0);
 
     /* The key the row index files a mantle under: its id, or "name:<name>" for
      * a mantle without one. */
@@ -327,7 +484,12 @@ public:
      * rows with their positions — rather than as one JSON text. Not a second
      * door: like an import, it replaces the store with a document that some
      * Core wrote. begin_bulk clears; end_bulk indexes and commits; abort_bulk
-     * leaves the store as it was. */
+     * leaves the store as it was.
+     *
+     * IT IS A HOST'S DOOR TOO (Void Squid, 2026-11-09): `import` files every
+     * tag under one source, so a host whose tags arrive with their own sources
+     * (an importer's, a person's, a rule's) fills the store here, rune by rune,
+     * with `sources`. The rows must still be a document some Core wrote. */
     bool begin_bulk();
     void bulk_top(const std::string& key, int pos, const std::optional<std::string>& json);
     long long bulk_mantle(const MantleRow& m, int pos);
@@ -351,10 +513,20 @@ public:
 
 private:
     bool exec(const char* sql);
+    std::string foreign(); // why the file is not a store, "" if it is one (or empty); writes nothing
     bool migrate();
     void load_kinds();
     void index_fields(long long rune, const std::string& glyph, const std::string& json);
     void assign_rows(long long mantle);
+    // the reseña
+    bool summarized(long long mantle);
+    std::string leaf_of(long long mantle, const std::string& name); // "" unclustered, a measure, or no rune
+    void tally(long long mantle, const std::string& leaf_a, const std::string& leaf_b, double weight, int sign);
+    void tally_rune(long long mantle, const std::string& name, int sign); // its count and every tie it has
+    void summarize(long long mantle, const std::map<std::string, int>& kinds);
+    // fills temp.ws with the runes `sel` holds of a partial mantle; false if it holds none of it
+    bool fill_held(long long mantle, const std::string& name, const Selection& sel);
+    void fill_far(long long mantle, std::uint32_t cap); // temp.far: (held, far) pairs, at most `cap` per held rune
     void assign_row(long long mantle, const std::string& rid);
 
     sqlite3* db_ = nullptr;

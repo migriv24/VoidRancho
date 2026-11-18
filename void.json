@@ -8,7 +8,7 @@
   "repository": "https://github.com/migriv24/VoidRancho",
   "description": "The database layer for Void Core applications: runes and mantles stored, indexed, queried and paged at scale, with edge weights as first-class floats, clustering, and a matrix view of a mantle that learned world models can read. One layer above Core, like Void Palabra and Void Maiz; Core stays pure.",
   "status": "alpha",
-  "status_note": "0.1.0 (2026-10-30): rungs 1-5 built and tested — Void Hormiga's store extracted and generalized (round trip, query parity with ls --tag, weights/ports/provenance/typed columns, format-1 migration), the write path with Hormiga's model-based test, the working set and Leiden clustering with weights, the matrix view with sparse algebra and a .npy training export, the network-path open policy, and snapshots as content-named segments. Void Hormiga's library builds on it (2026-11-02; its 2 GB exit test passed), and graph analysis (voidrancho_graph, a leaf target) moved here from Void Maiz the same day.",
+  "status_note": "0.1.0 (2026-10-30): rungs 1-5 built and tested — Void Hormiga's store extracted and generalized (round trip, query parity with ls --tag, weights/ports/provenance/typed columns, format-1 migration), the write path with Hormiga's model-based test, the working set and Leiden clustering with weights, the matrix view with sparse algebra and a .npy training export, the network-path open policy, and snapshots as content-named segments. Void Hormiga's library builds on it (2026-11-02; its 2 GB exit test passed), and graph analysis (voidrancho_graph, a leaf target) moved here from Void Maiz the same day. 2026-11-09: Void Squid adopted it; overlays (first form), the fringe and its certificate, a bounded cluster tree with per-node tie counts kept by write-back, the rodeo and the embarque, phone readiness, and a CI (not yet run).",
   "kind_note": "A library with no user-facing install, hence `runtime`; the schema has no `library` kind.",
 
   "requires": [
@@ -49,9 +49,9 @@
     {
       "name": "voidsquid",
       "kind": "application",
-      "seam": "store schema",
+      "seam": "store + deed + C++ API",
       "direction": "inbound",
-      "note": "Planned second client: its assets.db copies Hormiga's schema. Per-tag provenance (the source column) is its finding that tags launder."
+      "note": "Second client, adopted 2026-11-09 (Squid requires Rancho >=0.1.0, static): a game library's catalogue is a store carrying its own deed, and a .squid project is a rancho. Filled through the bulk load, so every tag keeps its source (per-tag provenance is Squid's finding that tags launder). Its old assets.db was never a store; Rancho now refuses such a file untouched. Its splice is the specification of overlays."
     },
     {
       "name": "voidpalabra",
